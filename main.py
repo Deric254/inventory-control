@@ -296,6 +296,7 @@ class ExcelEngine:
                 'to':    str(row[4]) if len(row)>4 and row[4] else '',
                 'event': str(row[5]) if len(row)>5 and row[5] else '',
                 'note':  str(row[6]) if len(row)>6 and row[6] else '',
+                'by':    str(row[7]) if len(row)>7 and row[7] else '',
             })
         return list(reversed(out))
 
@@ -333,7 +334,7 @@ class ExcelEngine:
             self._write_log(wb, 'DELETE', f"Deleted: {desc}")
             wb.save(MASTER_XL); wb.close()
 
-    def transfer_asset(self, row_num, asset_desc, serial, from_dept, to_dept, note, date):
+    def transfer_asset(self, row_num, asset_desc, serial, from_dept, to_dept, note, date, by='ICT Manager'):
         """Transfer an asset to another department — updates Inventory + logs history."""
         with self._lock:
             self._backup()
@@ -353,8 +354,9 @@ class ExcelEngine:
                 if note: entry += f": {note}"
                 ws_inv.cell(row=row_num, column=xfer_col).value = (str(old_xfer) + " | " + entry).strip(" |")
             # History
+            by_val = by if by and by.strip() else "ICT Manager"
             wb[SHEET_HISTORY].append([date, asset_desc, serial, from_dept, to_dept, "transferred",
-                f"Transferred from {from_dept} to {to_dept}. Note: {note}", "ICT Manager"])
+                f"Transferred from {from_dept} to {to_dept}. Note: {note}", by_val])
             self._write_log(wb, 'TRANSFER', f"Transferred {asset_desc} (S/N:{serial}) from {from_dept} → {to_dept}")
             wb.save(MASTER_XL); wb.close()
 
@@ -390,10 +392,11 @@ class ExcelEngine:
             self._write_log(wb,'REPLACE',f"Replaced {old_desc} → {rep.get('newBrand','')} on {rep['date']}")
             wb.save(MASTER_XL); wb.close()
 
-    def write_history_event(self, asset_desc, serial, dept, event, note, date):
+    def write_history_event(self, asset_desc, serial, dept, event, note, date, cost='', by='ICT Manager'):
         with self._lock:
             wb = openpyxl.load_workbook(MASTER_XL)
-            wb[SHEET_HISTORY].append([date, asset_desc, serial, dept, dept, event, note, "ICT Manager"])
+            by_val = by if by and by.strip() else "ICT Manager"
+            wb[SHEET_HISTORY].append([date, asset_desc, serial, dept, dept, event, note, by_val])
             if event == 'repaired':
                 ws = wb[SHEET_INV]
                 h  = [ws.cell(1,c).value for c in range(1, ws.max_column+1)]
@@ -432,6 +435,7 @@ class ExcelEngine:
                         'from':   str(row[3]) if len(row)>3 and row[3] else '',
                         'to':     str(row[4]) if len(row)>4 and row[4] else '',
                         'note':   str(row[6]) if len(row)>6 and row[6] else '',
+                        'by':     str(row[7]) if len(row)>7 and row[7] else '',
                     })
             wb.close()
             return list(reversed(out))
@@ -497,13 +501,13 @@ class Api:
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
 
-    def transfer_asset(self, row_num, asset_desc, serial, from_dept, to_dept, note, date):
+    def transfer_asset(self, row_num, asset_desc, serial, from_dept, to_dept, note, date, by='ICT Manager'):
         try:
             if not to_dept:
                 return json.dumps({"ok": False, "error": "Target department is required"})
             if from_dept == to_dept:
                 return json.dumps({"ok": False, "error": "Source and target departments must be different"})
-            self.engine.transfer_asset(int(row_num), asset_desc, serial, from_dept, to_dept, note, date or today())
+            self.engine.transfer_asset(int(row_num), asset_desc, serial, from_dept, to_dept, note, date or today(), by)
             return json.dumps({"ok": True})
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
@@ -524,9 +528,9 @@ class Api:
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
 
-    def write_history(self, asset_desc, serial, dept, event, note, date):
+    def write_history(self, asset_desc, serial, dept, event, note, date, cost='', by='ICT Manager'):
         try:
-            self.engine.write_history_event(asset_desc, serial, dept, event, note, date)
+            self.engine.write_history_event(asset_desc, serial, dept, event, note, date, cost, by)
             return json.dumps({"ok": True})
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})

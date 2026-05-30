@@ -550,6 +550,32 @@ td{padding:.55rem .95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowr
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* ── CUSTOM INPUT ── */
+.custom-input-row{display:flex;gap:.4rem;margin-top:.4rem}
+.custom-input-row input{flex:1;padding:.42rem .7rem;background:var(--bg3);border:1px solid var(--border);border-radius:7px;font-size:12.5px;color:var(--text);font-family:'Inter',sans-serif;outline:none;transition:border-color .15s}
+.custom-input-row input:focus{border-color:var(--blue)}
+.custom-input-row input::placeholder{color:var(--text3)}
+/* repair confirm banner */
+.repair-banner{background:var(--amber-dim);border:1px solid rgba(240,165,0,.3);border-radius:9px;padding:.75rem 1rem;margin-bottom:1rem;font-size:12.5px;color:var(--amber);display:none}
+/* report styles */
+#report-output{font-family:'Inter',sans-serif}
+.rpt-section{background:var(--bg2);border:1px solid var(--border);border-radius:12px;margin-bottom:.875rem;overflow:hidden}
+.rpt-sec-hd{background:var(--bg3);padding:.6rem 1.1rem;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border)}
+.rpt-table{width:100%;border-collapse:collapse;font-size:12px}
+.rpt-table th{padding:.5rem .85rem;text-align:left;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--border);background:rgba(0,0,0,.1)}
+.rpt-table td{padding:.45rem .85rem;border-bottom:1px solid var(--border);color:var(--text)}
+.rpt-table tr:last-child td{border:none}
+.rpt-table tr:hover td{background:var(--bg4)}
+.rpt-kpi-row{display:flex;gap:.75rem;padding:1rem 1.1rem;flex-wrap:wrap}
+.rpt-kpi{flex:1;min-width:100px;text-align:center;background:var(--bg3);border-radius:9px;padding:.75rem .5rem}
+.rpt-kpi-v{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--blue)}
+.rpt-kpi-l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:.2rem}
+@media print{
+  .sidebar,.topbar,.toast-wrap,.loading-overlay,#sec-dashboard,#sec-inventory,#sec-transfers,#sec-history,#sec-ink,#sec-config,#sec-settings,#report-output .rpt-toolbar{display:none!important}
+  #sec-report{display:block!important;padding:0}
+  #report-output{color:#000!important;background:#fff!important}
+  .rpt-section,.rpt-table th,.rpt-table td,.rpt-sec-hd{background:#fff!important;color:#000!important;border-color:#ccc!important}
+}
 /* ── MISC ── */
 .master-path{font-size:10px;color:var(--text3);padding:.25rem .875rem;background:var(--bg3);border-top:1px solid var(--border)}
 .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 2.5s ease-in-out infinite;display:inline-block;margin-right:5px}
@@ -617,6 +643,7 @@ code, .mono{font-family:'DM Mono',monospace}
     <div class="nav-hd">Operations</div>
     <button class="nav-btn" onclick="nav('transfers')" id="nb-transfers"><span class="ni">🔄</span>Transfers</button>
     <button class="nav-btn" onclick="nav('history')" id="nb-history"><span class="ni">📋</span>Activity Log</button>
+    <button class="nav-btn" onclick="nav('report')" id="nb-report"><span class="ni">📄</span>Asset Report</button>
     <button class="nav-btn" onclick="nav('ink')" id="nb-ink"><span class="ni">🖨️</span>Ink Station</button>
     <div class="nav-hd">System</div>
     <button class="nav-btn" onclick="nav('config')" id="nb-config"><span class="ni">⚙️</span>Customise</button>
@@ -626,7 +653,17 @@ code, .mono{font-family:'DM Mono',monospace}
     <div style="color:var(--text3);font-size:10.5px;margin-bottom:.5rem;display:flex;align-items:center">
       <span class="sync-dot"></span>Live — Excel Database
     </div>
-    <button class="btn ghost sm" onclick="openExcel()" style="width:100%;justify-content:center;font-size:11.5px">📁 Open Excel File</button>
+    <button class="btn ghost sm" onclick="openExcel()" style="width:100%;justify-content:center;font-size:11.5px;margin-bottom:.375rem">📁 Open Excel File</button>
+    <div style="border-top:1px solid var(--border);padding-top:.625rem;margin-top:.25rem">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+        <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#4d9fff,#a78bff);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🔑</div>
+        <div>
+          <div style="font-size:11px;color:var(--text);font-weight:600">ICT Manager</div>
+          <div style="font-size:10px;color:var(--text3)">Authenticated</div>
+        </div>
+      </div>
+      <button class="btn del sm" onclick="doLogout()" style="width:100%;justify-content:center;font-size:11.5px">🚪 Log Out</button>
+    </div>
   </div>
 </aside>
 
@@ -709,6 +746,18 @@ code, .mono{font-family:'DM Mono',monospace}
     </div>
   </div>
 
+  <!-- REPORT -->
+  <div class="content sec" id="sec-report">
+    <div style="margin-bottom:1rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+      <div style="flex:1;font-size:12.5px;color:var(--text2)">Generate a concise portable asset report showing inventory, changes, costs and full audit trail.</div>
+      <select class="fsel" id="rpt-dept"><option value="">All Departments</option></select>
+      <select class="fsel" id="rpt-type"><option value="">All Types</option></select>
+      <button class="btn teal" onclick="generateReport()">📄 Generate Report</button>
+      <button class="btn ghost" onclick="printReport()">🖨️ Print / Save PDF</button>
+    </div>
+    <div id="report-output"></div>
+  </div>
+
   <!-- INK -->
   <div class="content sec" id="sec-ink">
     <div class="ink-grid" id="ink-grid"></div>
@@ -744,20 +793,52 @@ code, .mono{font-family:'DM Mono',monospace}
 
   <!-- SECURITY / SETTINGS -->
   <div class="content sec" id="sec-settings">
-    <div class="card" style="max-width:480px;margin-bottom:.875rem">
+    <div class="card" style="max-width:520px;margin-bottom:.875rem">
       <div class="card-hd"><span class="card-title">🔒 Change Access PIN</span></div>
       <div class="card-bd">
-        <div style="font-size:12px;color:var(--text2);margin-bottom:1rem">Your PIN controls who can access this system. Keep it private. Minimum 4 characters.</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:1.1rem">Your PIN secures access to this system. Minimum 4 characters. After changing, you will be logged out and must sign in again with the new PIN.</div>
         <div class="fg">
-          <div class="ff"><label>Current PIN</label><input type="password" id="pin-old" placeholder="Current PIN"></div>
-          <div class="ff"><label>New PIN</label><input type="password" id="pin-new2" placeholder="New PIN (min 4)"></div>
-          <div class="ff"><label>Confirm New PIN</label><input type="password" id="pin-cnf" placeholder="Confirm new PIN"></div>
-          <div class="ff" style="align-self:end"><button class="btn ok" onclick="changePin()">✅ Update PIN</button></div>
+          <div class="ff full">
+            <label>Current PIN</label>
+            <input type="password" id="pin-old" placeholder="Enter your current PIN" autocomplete="current-password"
+              style="letter-spacing:.15em;font-family:'DM Mono',monospace">
+          </div>
+          <div class="ff">
+            <label>New PIN <span style="opacity:.5;font-size:9px;text-transform:none;letter-spacing:0">(min 4 chars)</span></label>
+            <input type="password" id="pin-new2" placeholder="New PIN" autocomplete="new-password"
+              style="letter-spacing:.15em;font-family:'DM Mono',monospace">
+          </div>
+          <div class="ff">
+            <label>Confirm New PIN</label>
+            <input type="password" id="pin-cnf" placeholder="Repeat new PIN" autocomplete="new-password"
+              style="letter-spacing:.15em;font-family:'DM Mono',monospace"
+              onkeydown="if(event.key==='Enter')changePin()">
+          </div>
         </div>
-        <div id="pin-msg" style="margin-top:.875rem;font-size:12px"></div>
+        <div id="pin-msg" style="margin-top:.875rem;font-size:12px;min-height:1.4em"></div>
+        <div style="margin-top:1rem;display:flex;gap:.5rem">
+          <button class="btn ok" onclick="changePin()">🔑 Update PIN & Log Out</button>
+          <button class="btn ghost" onclick="document.getElementById('pin-old').value='';document.getElementById('pin-new2').value='';document.getElementById('pin-cnf').value='';document.getElementById('pin-msg').textContent=''">Clear</button>
+        </div>
       </div>
     </div>
-    <div class="card" style="max-width:480px">
+
+    <div class="card" style="max-width:520px;margin-bottom:.875rem">
+      <div class="card-hd"><span class="card-title">🚪 Session</span></div>
+      <div class="card-bd">
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
+          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#4d9fff,#a78bff);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 0 16px rgba(77,159,255,.3)">🔑</div>
+          <div>
+            <div style="font-size:13.5px;font-weight:700;color:var(--text)">ICT Manager</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:.2rem">Active session &nbsp;·&nbsp; <span class="pulse" style="width:5px;height:5px;display:inline-block"></span> Authenticated</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:1rem">Logging out will close your session. You will need your PIN to access the system again.</div>
+        <button class="btn del" onclick="doLogout()" style="font-size:12.5px">🚪 &nbsp;Log Out Now</button>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:520px">
       <div class="card-hd"><span class="card-title">📦 Portable App Builder</span></div>
       <div class="card-bd">
         <div style="font-size:12px;color:var(--text2);margin-bottom:1rem">
@@ -859,6 +940,7 @@ code, .mono{font-family:'DM Mono',monospace}
       </div>
       <div class="ff"><label>Transfer Date</label><input type="date" id="xfer-date"></div>
       <div class="ff full"><label>Reason / Note</label><textarea id="xfer-note" placeholder="Why is this being transferred?"></textarea></div>
+      <div class="ff"><label>Authorised By</label><input id="xfer-by" placeholder="Name of authorising officer…"></div>
     </div>
   </div>
   <div class="mft">
@@ -876,8 +958,12 @@ code, .mono{font-family:'DM Mono',monospace}
     <button class="xbtn" onclick="closeModal('ov-event')">✕</button>
   </div>
   <div class="mbd">
+    <div class="repair-banner" id="repair-banner">
+      ⚠️ This asset is currently marked as <strong>Needs Repair</strong>. After logging, click <strong>"Mark as Repaired &amp; Done"</strong> to update its status and auto-log today's date.
+    </div>
     <input type="hidden" id="evt-serial">
     <input type="hidden" id="evt-dept">
+    <input type="hidden" id="evt-row">
     <div class="fg">
       <div class="ff"><label>Event Type</label>
         <select id="hist-event">
@@ -892,10 +978,13 @@ code, .mono{font-family:'DM Mono',monospace}
       </div>
       <div class="ff"><label>Date</label><input type="date" id="hist-date"></div>
       <div class="ff full"><label>Description *</label><textarea id="hist-note" placeholder="Describe what was done…"></textarea></div>
+      <div class="ff"><label>Cost (KES)</label><input type="number" id="hist-cost" placeholder="0" min="0" step="0.01"></div>
+      <div class="ff"><label>Technician / Done By</label><input id="hist-by" placeholder="Name of technician…"></div>
     </div>
   </div>
   <div class="mft">
     <button class="btn ghost" onclick="closeModal('ov-event')">Cancel</button>
+    <button class="btn amber" id="mark-repaired-btn" onclick="markRepairDone()" style="display:none">✅ Mark as Repaired & Done</button>
     <button class="btn ok" onclick="saveEvent()">💾 Save Event</button>
   </div>
 </div>
@@ -931,6 +1020,8 @@ code, .mono{font-family:'DM Mono',monospace}
       <div class="ff"><label>IP Address</label><input id="rep-ip" placeholder="If applicable"></div>
       <div class="ff"><label>Date</label><input type="date" id="rep-date"></div>
       <div class="ff full"><label>Replacement Note *</label><textarea id="rep-note" placeholder="Reason for replacement…"></textarea></div>
+      <div class="ff"><label>Cost / Value (KES)</label><input type="number" id="rep-cost" placeholder="0" min="0" step="0.01"></div>
+      <div class="ff"><label>Supplier / Vendor</label><input id="rep-vendor" placeholder="Where purchased?"></div>
     </div>
   </div>
   <div class="mft">
@@ -959,9 +1050,7 @@ code, .mono{font-family:'DM Mono',monospace}
 </div>
 
 <!-- ════ SCRIPTS ════ -->
-<script>
 !function(t,e){"object"==typeof exports&&"undefined"!=typeof module?module.exports=e():"function"==typeof define&&define.amd?define(e):(t="undefined"!=typeof globalThis?globalThis:t||self).Chart=e()}(this,(function(){"use strict";var t=Object.freeze({__proto__:null,get Colors(){return Go},get Decimation(){return Qo},get Filler(){return ma},get Legend(){return ya},get SubTitle(){return ka},get Title(){return Ma},get Tooltip(){return Ba}});function e(){}const i=(()=>{let t=0;return()=>t++})();function s(t){return null==t}function n(t){if(Array.isArray&&Array.isArray(t))return!0;const e=Object.prototype.toString.call(t);return"[object"===e.slice(0,7)&&"Array]"===e.slice(-6)}function o(t){return null!==t&&"[object Object]"===Object.prototype.toString.call(t)}function a(t){return("number"==typeof t||t instanceof Number)&&isFinite(+t)}function r(t,e){return a(t)?t:e}function l(t,e){return void 0===t?e:t}const h=(t,e)=>"string"==typeof t&&t.endsWith("%")?parseFloat(t)/100:+t/e,c=(t,e)=>"string"==typeof t&&t.endsWith("%")?parseFloat(t)/100*e:+t;function d(t,e,i){if(t&&"function"==typeof t.call)return t.apply(i,e)}function u(t,e,i,s){let a,r,l;if(n(t))if(r=t.length,s)for(a=r-1;a>=0;a--)e.call(i,t[a],a);else for(a=0;a<r;a++)e.call(i,t[a],a);else if(o(t))for(l=Object.keys(t),r=l.length,a=0;a<r;a++)e.call(i,t[l[a]],l[a])}function f(t,e){let i,s,n,o;if(!t||!e||t.length!==e.length)return!1;for(i=0,s=t.length;i<s;++i)if(n=t[i],o=e[i],n.datasetIndex!==o.datasetIndex||n.index!==o.index)return!1;return!0}function g(t){if(n(t))return t.map(g);if(o(t)){const e=Object.create(null),i=Object.keys(t),s=i.length;let n=0;for(;n<s;++n)e[i[n]]=g(t[i[n]]);return e}return t}function p(t){return-1===["__proto__","prototype","constructor"].indexOf(t)}function m(t,e,i,s){if(!p(t))return;const n=e[t],a=i[t];o(n)&&o(a)?b(n,a,s):e[t]=g(a)}function b(t,e,i){const s=n(e)?e:[e],a=s.length;if(!o(t))return t;const r=(i=i||{}).merger||m;let l;for(let e=0;e<a;++e){if(l=s[e],!o(l))continue;const n=Object.keys(l);for(let e=0,s=n.length;e<s;++e)r(n[e],t,l,i)}return t}function x(t,e){return b(t,e,{merger:_})}function _(t,e,i){if(!p(t))return;const s=e[t],n=i[t];o(s)&&o(n)?x(s,n):Object.prototype.hasOwnProperty.call(e,t)||(e[t]=g(n))}const y={"":t=>t,x:t=>t.x,y:t=>t.y};function v(t){const e=t.split("."),i=[];let s="";for(const t of e)s+=t,s.endsWith("\\")?s=s.slice(0,-1)+".":(i.push(s),s="");return i}function M(t,e){const i=y[e]||(y[e]=function(t){const e=v(t);return t=>{for(const i of e){if(""===i)break;t=t&&t[i]}return t}}(e));return i(t)}function w(t){return t.charAt(0).toUpperCase()+t.slice(1)}const k=t=>void 0!==t,S=t=>"function"==typeof t,P=(t,e)=>{if(t.size!==e.size)return!1;for(const i of t)if(!e.has(i))return!1;return!0};function D(t){return"mouseup"===t.type||"click"===t.type||"contextmenu"===t.type}const C=Math.PI,O=2*C,A=O+C,T=Number.POSITIVE_INFINITY,L=C/180,E=C/2,R=C/4,I=2*C/3,z=Math.log10,F=Math.sign;function V(t,e,i){return Math.abs(t-e)<i}function B(t){const e=Math.round(t);t=V(t,e,t/1e3)?e:t;const i=Math.pow(10,Math.floor(z(t))),s=t/i;return(s<=1?1:s<=2?2:s<=5?5:10)*i}function W(t){const e=[],i=Math.sqrt(t);let s;for(s=1;s<i;s++)t%s==0&&(e.push(s),e.push(t/s));return i===(0|i)&&e.push(i),e.sort(((t,e)=>t-e)).pop(),e}function N(t){return!isNaN(parseFloat(t))&&isFinite(t)}function H(t,e){const i=Math.round(t);return i-e<=t&&i+e>=t}function j(t,e,i){let s,n,o;for(s=0,n=t.length;s<n;s++)o=t[s][i],isNaN(o)||(e.min=Math.min(e.min,o),e.max=Math.max(e.max,o))}function $(t){return t*(C/180)}function Y(t){return t*(180/C)}function U(t){if(!a(t))return;let e=1,i=0;for(;Math.round(t*e)/e!==t;)e*=10,i++;return i}function X(t,e){const i=e.x-t.x,s=e.y-t.y,n=Math.sqrt(i*i+s*s);let o=Math.atan2(s,i);return o<-.5*C&&(o+=O),{angle:o,distance:n}}function q(t,e){return Math.sqrt(Math.pow(e.x-t.x,2)+Math.pow(e.y-t.y,2))}function K(t,e){return(t-e+A)%O-C}function G(t){return(t%O+O)%O}function Z(t,e,i,s){const n=G(t),o=G(e),a=G(i),r=G(o-n),l=G(a-n),h=G(n-o),c=G(n-a);return n===o||n===a||s&&o===a||r>l&&h<c}function J(t,e,i){return Math.max(e,Math.min(i,t))}function Q(t){return J(t,-32768,32767)}function tt(t,e,i,s=1e-6){return t>=Math.min(e,i)-s&&t<=Math.max(e,i)+s}function et(t,e,i){i=i||(i=>t[i]<e);let s,n=t.length-1,o=0;for(;n-o>1;)s=o+n>>1,i(s)?o=s:n=s;return{lo:o,hi:n}}const it=(t,e,i,s)=>et(t,i,s?s=>{const n=t[s][e];return n<i||n===i&&t[s+1][e]===i}:s=>t[s][e]<i),st=(t,e,i)=>et(t,i,(s=>t[s][e]>=i));function nt(t,e,i){let s=0,n=t.length;for(;s<n&&t[s]<e;)s++;for(;n>s&&t[n-1]>i;)n--;return s>0||n<t.length?t.slice(s,n):t}const ot=["push","pop","shift","splice","unshift"];function at(t,e){t._chartjs?t._chartjs.listeners.push(e):(Object.defineProperty(t,"_chartjs",{configurable:!0,enumerable:!1,value:{listeners:[e]}}),ot.forEach((e=>{const i="_onData"+w(e),s=t[e];Object.defineProperty(t,e,{configurable:!0,enumerable:!1,value(...e){const n=s.apply(this,e);return t._chartjs.listeners.forEach((t=>{"function"==typeof t[i]&&t[i](...e)})),n}})})))}function rt(t,e){const i=t._chartjs;if(!i)return;const s=i.listeners,n=s.indexOf(e);-1!==n&&s.splice(n,1),s.length>0||(ot.forEach((e=>{delete t[e]})),delete t._chartjs)}function lt(t){const e=new Set(t);return e.size===t.length?t:Array.from(e)}const ht="undefined"==typeof window?function(t){return t()}:window.requestAnimationFrame;function ct(t,e){let i=[],s=!1;return function(...n){i=n,s||(s=!0,ht.call(window,(()=>{s=!1,t.apply(e,i)})))}}function dt(t,e){let i;return function(...s){return e?(clearTimeout(i),i=setTimeout(t,e,s)):t.apply(this,s),e}}const ut=t=>"start"===t?"left":"end"===t?"right":"center",ft=(t,e,i)=>"start"===t?e:"end"===t?i:(e+i)/2,gt=(t,e,i,s)=>t===(s?"left":"right")?i:"center"===t?(e+i)/2:e;function pt(t,e,i){const s=e.length;let n=0,o=s;if(t._sorted){const{iScale:a,_parsed:r}=t,l=a.axis,{min:h,max:c,minDefined:d,maxDefined:u}=a.getUserBounds();d&&(n=J(Math.min(it(r,l,h).lo,i?s:it(e,l,a.getPixelForValue(h)).lo),0,s-1)),o=u?J(Math.max(it(r,a.axis,c,!0).hi+1,i?0:it(e,l,a.getPixelForValue(c),!0).hi+1),n,s)-n:s-n}return{start:n,count:o}}function mt(t){const{xScale:e,yScale:i,_scaleRanges:s}=t,n={xmin:e.min,xmax:e.max,ymin:i.min,ymax:i.max};if(!s)return t._scaleRanges=n,!0;const o=s.xmin!==e.min||s.xmax!==e.max||s.ymin!==i.min||s.ymax!==i.max;return Object.assign(s,n),o}class bt{constructor(){this._request=null,this._charts=new Map,this._running=!1,this._lastDate=void 0}_notify(t,e,i,s){const n=e.listeners[s],o=e.duration;n.forEach((s=>s({chart:t,initial:e.initial,numSteps:o,currentStep:Math.min(i-e.start,o)})))}_refresh(){this._request||(this._running=!0,this._request=ht.call(window,(()=>{this._update(),this._request=null,this._running&&this._refresh()})))}_update(t=Date.now()){let e=0;this._charts.forEach(((i,s)=>{if(!i.running||!i.items.length)return;const n=i.items;let o,a=n.length-1,r=!1;for(;a>=0;--a)o=n[a],o._active?(o._total>i.duration&&(i.duration=o._total),o.tick(t),r=!0):(n[a]=n[n.length-1],n.pop());r&&(s.draw(),this._notify(s,i,t,"progress")),n.length||(i.running=!1,this._notify(s,i,t,"complete"),i.initial=!1),e+=n.length})),this._lastDate=t,0===e&&(this._running=!1)}_getAnims(t){const e=this._charts;let i=e.get(t);return i||(i={running:!1,initial:!0,items:[],listeners:{complete:[],progress:[]}},e.set(t,i)),i}listen(t,e,i){this._getAnims(t).listeners[e].push(i)}add(t,e){e&&e.length&&this._getAnims(t).items.push(...e)}has(t){return this._getAnims(t).items.length>0}start(t){const e=this._charts.get(t);e&&(e.running=!0,e.start=Date.now(),e.duration=e.items.reduce(((t,e)=>Math.max(t,e._duration)),0),this._refresh())}running(t){if(!this._running)return!1;const e=this._charts.get(t);return!!(e&&e.running&&e.items.length)}stop(t){const e=this._charts.get(t);if(!e||!e.items.length)return;const i=e.items;let s=i.length-1;for(;s>=0;--s)i[s].cancel();e.items=[],this._notify(t,e,Date.now(),"complete")}remove(t){return this._charts.delete(t)}}var xt=new bt;
-
 // ══════════════════════════════════════════════════════
 // CORE STATE
 // ══════════════════════════════════════════════════════
@@ -1046,6 +1135,7 @@ function loadApp(){
     renderInk();
     renderConfig();
     renderTransferLog();
+    buildReportFilters();
   });
 }
 
@@ -1055,6 +1145,7 @@ function reload(cb){
     if(res.ok){ rows=res.data.inventory||[]; inkState=res.data.ink||{}; logItems=res.data.log||[]; histItems=res.data.history||[]; }
     updateTopKPIs();
     rebuildFilters();
+    buildReportFilters();
     if(cb) cb();
   });
 }
@@ -1067,6 +1158,7 @@ var NAV_LABELS={
   inventory:{title:'Inventory',sub:'All registered assets'},
   transfers:{title:'Transfers',sub:'Asset movement between departments'},
   history:{title:'Activity Log',sub:'Full history of events and changes'},
+  report:{title:'Asset Report',sub:'Portable summary report of all assets and changes'},
   ink:{title:'Ink Station',sub:'Printer ink tracking and restocking'},
   config:{title:'Customise',sub:'Add departments, types and status values'},
   settings:{title:'Security & Setup',sub:'Change PIN and generate portable installer'}
@@ -1087,13 +1179,80 @@ function nav(id){
 }
 
 // ══════════════════════════════════════════════════════
+// CUSTOM DROPDOWN HELPER — allows "Other / type custom"
+// ══════════════════════════════════════════════════════
+function fillSelWithCustom(id, arr, withBlank){
+  var el=document.getElementById(id); if(!el)return;
+  var cur=el.value;
+  el.innerHTML='';
+  if(withBlank){ var o=document.createElement('option'); o.value=''; o.textContent='Select…'; el.appendChild(o); }
+  arr.forEach(function(v){ var o=document.createElement('option'); o.value=v; o.textContent=v; el.appendChild(o); });
+  // Add "Other / custom…" sentinel
+  var oc=document.createElement('option'); oc.value='__custom__'; oc.textContent='✏️ Other / type custom…'; el.appendChild(oc);
+  if(cur) el.value=cur;
+
+  // Attach change listener for custom option — only once
+  if(!el.__customListenerAttached){
+    el.__customListenerAttached=true;
+    el.addEventListener('change', function(){
+      if(el.value==='__custom__'){
+        showCustomInput(el);
+      } else {
+        hideCustomInput(el);
+      }
+    });
+  }
+}
+
+function showCustomInput(selectEl){
+  // Remove any existing custom input row for this select
+  var existing=document.getElementById('cust-'+selectEl.id);
+  if(existing) existing.remove();
+  var row=document.createElement('div');
+  row.className='custom-input-row';
+  row.id='cust-'+selectEl.id;
+  var inp=document.createElement('input');
+  inp.placeholder='Type custom value…';
+  inp.id='custinp-'+selectEl.id;
+  var btn=document.createElement('button');
+  btn.className='btn sm pri';
+  btn.textContent='✓ Use';
+  btn.onclick=function(){
+    var val=inp.value.trim();
+    if(!val){toast('Please enter a value','warn');return;}
+    // Add a temp option and select it
+    var existing2=Array.from(selectEl.options).find(function(o){return o.value===val;});
+    if(!existing2){
+      var o=document.createElement('option');
+      o.value=val; o.textContent=val;
+      // Insert before the "Other" option
+      var customOpt=Array.from(selectEl.options).find(function(o){return o.value==='__custom__';});
+      selectEl.insertBefore(o, customOpt);
+    }
+    selectEl.value=val;
+    row.remove();
+  };
+  inp.onkeydown=function(e){if(e.key==='Enter')btn.onclick();};
+  row.appendChild(inp);
+  row.appendChild(btn);
+  selectEl.parentNode.insertBefore(row, selectEl.nextSibling);
+  setTimeout(function(){inp.focus();},50);
+}
+
+function hideCustomInput(selectEl){
+  var existing=document.getElementById('cust-'+selectEl.id);
+  if(existing) existing.remove();
+}
+
+// ══════════════════════════════════════════════════════
 // DROPDOWNS
 // ══════════════════════════════════════════════════════
 function buildDropdowns(){
-  fillSel('a-type', cfg.types||[], true);
-  fillSel('a-dept', cfg.departments||[], true);
-  fillSel('a-cond', cfg.conditions||[], false);
-  fillSel('rep-new-type', cfg.types||[], true);
+  fillSelWithCustom('a-type', cfg.types||[], true);
+  fillSelWithCustom('a-dept', cfg.departments||[], true);
+  fillSelWithCustom('a-cond', cfg.conditions||[], false);
+  fillSelWithCustom('rep-new-type', cfg.types||[], true);
+  fillSelWithCustom('rep-new-cond', ['New','Good','Fair','Good (Refurbished)'], false);
 }
 
 function fillSel(id, arr, withBlank){
@@ -1125,8 +1284,8 @@ function rebuildFilters(){
   cv=fc.value; fc.innerHTML='<option value="">All status</option>';
   conditions.forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;fc.appendChild(o);}); fc.value=cv;
 
-  // Transfer dest dropdown
-  fillSel('xfer-to-dept', cfg.departments||[], true);
+  // Transfer dest dropdown with custom option
+  fillSelWithCustom('xfer-to-dept', cfg.departments||[], true);
 
   updateTopKPIs();
 }
@@ -1173,9 +1332,14 @@ function renderDashboard(){
   active.forEach(function(r){var d=r['Department/Location']||'Unknown';deptCounts[d]=(deptCounts[d]||0)+1;});
   var deptKeys=Object.keys(deptCounts).sort(function(a,b){return deptCounts[b]-deptCounts[a];}).slice(0,8);
 
-  var condCounts={'New':newC,'Good/Fair':good,'Needs Repair':repair,'Replaced':replaced};
+  // Condition distribution — only non-zero
+  var condData={'New':newC,'Good/Fair':good,'Needs Repair':repair,'Replaced':replaced};
+  var condLabels=Object.keys(condData).filter(function(k){return condData[k]>0;});
+  var condValues=condLabels.map(function(k){return condData[k];});
+  var condTotal=condValues.reduce(function(a,b){return a+b;},0);
 
   var colors=['#58a6ff','#3fb950','#bc8cff','#d29922','#39c5bb','#f85149','#79c0ff','#56d364'];
+  var pieColors=['#58a6ff','#3fb950','#d29922','#bc8cff'];
 
   document.getElementById('chart-area').innerHTML=
     '<div class="card"><div class="card-hd"><span class="card-title">Assets by Department</span></div><div class="card-bd"><canvas id="ch-dept" height="160"></canvas></div></div>'+
@@ -1183,7 +1347,60 @@ function renderDashboard(){
 
   setTimeout(function(){
     new Chart(document.getElementById('ch-dept'),{type:'bar',data:{labels:deptKeys,datasets:[{data:deptKeys.map(function(k){return deptCounts[k];}),backgroundColor:colors,borderRadius:4,borderSkipped:false}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(240,246,252,.04)'}}},responsive:true,maintainAspectRatio:false}});
-    new Chart(document.getElementById('ch-cond'),{type:'doughnut',data:{labels:Object.keys(condCounts),datasets:[{data:Object.values(condCounts),backgroundColor:['#58a6ff','#3fb950','#d29922','#bc8cff'],borderWidth:0,hoverOffset:4}]},options:{plugins:{legend:{position:'right',labels:{color:'#8b949e',font:{size:11},boxWidth:12,padding:8}}},cutout:'60%',responsive:true,maintainAspectRatio:false}});
+
+    // Pie with percentage labels
+    new Chart(document.getElementById('ch-cond'),{
+      type:'doughnut',
+      data:{
+        labels:condLabels,
+        datasets:[{data:condValues,backgroundColor:pieColors.slice(0,condLabels.length),borderWidth:0,hoverOffset:6}]
+      },
+      options:{
+        plugins:{
+          legend:{position:'right',labels:{color:'#8b949e',font:{size:11},boxWidth:12,padding:8}},
+          tooltip:{
+            callbacks:{
+              label:function(ctx){
+                var val=ctx.raw;
+                var pct=condTotal>0?Math.round(val/condTotal*100):0;
+                return ' '+ctx.label+': '+val+' ('+pct+'%)';
+              }
+            }
+          },
+          // Custom plugin to render % inside slices
+          datalabels: false
+        },
+        cutout:'55%',
+        responsive:true,
+        maintainAspectRatio:false
+      },
+      plugins:[{
+        id:'pct-labels',
+        afterDraw:function(chart){
+          var ctx2=chart.ctx;
+          var datasets=chart.data.datasets[0];
+          var meta=chart.getDatasetMeta(0);
+          if(!meta.data) return;
+          ctx2.save();
+          meta.data.forEach(function(arc,i){
+            var val=datasets.data[i];
+            var pct=condTotal>0?Math.round(val/condTotal*100):0;
+            if(pct<4) return; // skip tiny slices
+            var cx=arc.x, cy=arc.y;
+            var angle=(arc.startAngle+arc.endAngle)/2;
+            var r=(arc.outerRadius+arc.innerRadius)/2;
+            var x=cx+Math.cos(angle)*r;
+            var y=cy+Math.sin(angle)*r;
+            ctx2.fillStyle='#fff';
+            ctx2.font='bold 11px Inter,sans-serif';
+            ctx2.textAlign='center';
+            ctx2.textBaseline='middle';
+            ctx2.fillText(pct+'%',x,y);
+          });
+          ctx2.restore();
+        }
+      }]
+    });
   },50);
 
   // Quick stats row
@@ -1208,7 +1425,7 @@ function kpi(cls,ico,v,l,s){
 }
 
 function logIco(a){
-  var m={ADD:'➕',EDIT:'✏️',DELETE:'🗑️',INK:'🖨️',REPLACE:'🔁',TRANSFER:'🔄',REPAIRED:'🔧',UPGRADED:'⬆️',REASSIGNED:'👤',SERVICED:'🛠️',DELETE:'🗑️'};
+  var m={ADD:'➕',EDIT:'✏️',DELETE:'🗑️',INK:'🖨️',REPLACE:'🔁',TRANSFER:'🔄',REPAIRED:'🔧',UPGRADED:'⬆️',REASSIGNED:'👤',SERVICED:'🛠️'};
   return m[a]||'📌';
 }
 
@@ -1257,7 +1474,8 @@ function renderTable(){
   tbody.innerHTML=paged.map(function(r){
     var cond=r['Condition/Status']||'';
     var bc=condBadgeClass(cond);
-    return '<tr onclick="openDetail('+r._row+')">'+
+    var needsRepair=cond.indexOf('Repair')>-1;
+    return '<tr onclick="openDetail('+r._row+')"'+( needsRepair?' style="background:rgba(240,165,0,.04)"':'')+'>'+
       '<td>'+escHtml(r['Equipment Type']||'')+'</td>'+
       '<td>'+escHtml(r['Brand/Model']||'')+'</td>'+
       '<td style="font-family:monospace;font-size:11.5px">'+escHtml(r['Serial No.']||'')+'</td>'+
@@ -1268,7 +1486,8 @@ function renderTable(){
       '<td onclick="event.stopPropagation()" style="white-space:nowrap">'+
         '<button class="btn sm ghost" onclick="openEditModal('+r._row+')" title="Edit">✏️</button>'+
         '<button class="btn sm teal" onclick="openTransferForRow('+r._row+')" title="Transfer">🔄</button>'+
-        '<button class="btn sm amber" onclick="openEventModal('+r._row+')" title="Log Event">📝</button>'+
+        (needsRepair?'<button class="btn sm amber" onclick="openRepairConfirm('+r._row+')" title="Confirm Repair Done">🔧</button>':
+          '<button class="btn sm amber" onclick="openEventModal('+r._row+')" title="Log Event">📝</button>')+
         '<button class="btn sm ghost" onclick="openReplaceModal('+r._row+')" title="Replace">🔁</button>'+
       '</td></tr>';
   }).join('');
@@ -1327,13 +1546,16 @@ function openDetail(rowNum){
     html+='<div class="dlbl">'+f.l+'</div><div class="dval">'+escHtml(f.v||'—')+'</div>';
   });
   document.getElementById('det-grid').innerHTML=html;
+
+  var needsRepair=(r['Condition/Status']||'').indexOf('Repair')>-1;
   document.getElementById('det-actions').innerHTML=
-    '<button class="btn ghost" onclick="closeModal('ov-detail')">Close</button>'+
-    '<button class="btn" onclick="openEditModal('+rowNum+');closeModal('ov-detail')">✏️ Edit</button>'+
-    '<button class="btn teal" onclick="openTransferForRow('+rowNum+');closeModal('ov-detail')">🔄 Transfer</button>'+
-    '<button class="btn amber" onclick="openEventModal('+rowNum+');closeModal('ov-detail')">📝 Log Event</button>'+
-    '<button class="btn ghost" onclick="openReplaceModal('+rowNum+');closeModal('ov-detail')">🔁 Replace</button>'+
-    '<button class="btn del" onclick="if(confirm('Delete this asset permanently?')){deleteAsset('+rowNum+',''+escHtml((r['Equipment Type']||'')+' '+( r['Brand/Model']||''))+'')}">🗑️ Delete</button>';
+    '<button class="btn ghost" onclick="closeModal(\'ov-detail\')">Close</button>'+
+    '<button class="btn" onclick="openEditModal('+rowNum+');closeModal(\'ov-detail\')">✏️ Edit</button>'+
+    '<button class="btn teal" onclick="openTransferForRow('+rowNum+');closeModal(\'ov-detail\')">🔄 Transfer</button>'+
+    (needsRepair?'<button class="btn amber" onclick="openRepairConfirm('+rowNum+');closeModal(\'ov-detail\')">🔧 Mark Repaired</button>':
+      '<button class="btn amber" onclick="openEventModal('+rowNum+');closeModal(\'ov-detail\')">📝 Log Event</button>')+
+    '<button class="btn ghost" onclick="openReplaceModal('+rowNum+');closeModal(\'ov-detail\')">🔁 Replace</button>'+
+    '<button class="btn del" onclick="if(confirm(\'Delete this asset permanently?\')){deleteAsset('+rowNum+',\''+escHtml((r['Equipment Type']||'')+' '+(r['Brand/Model']||''))+'\')}">🗑️ Delete</button>';
   openModal('ov-detail');
 }
 
@@ -1360,13 +1582,26 @@ function openEditModal(rowNum){
   document.getElementById('asset-modal-sub').textContent='Update asset details';
   document.getElementById('asset-row').value=rowNum;
   document.getElementById('asset-save-btn').textContent='💾 Update Asset';
-  document.getElementById('a-type').value=r['Equipment Type']||'';
+  // For dropdowns — if the value isn't in the list, add a temp option
+  function setSelVal(id, val){
+    var el=document.getElementById(id); if(!el)return;
+    // Try setting directly first
+    el.value=val||'';
+    if(el.value!==val && val){
+      // Add temp option
+      var o=document.createElement('option'); o.value=val; o.textContent=val;
+      var customOpt=Array.from(el.options).find(function(o){return o.value==='__custom__';});
+      if(customOpt) el.insertBefore(o, customOpt); else el.appendChild(o);
+      el.value=val;
+    }
+  }
+  setSelVal('a-type', r['Equipment Type']);
   document.getElementById('a-brand').value=r['Brand/Model']||'';
   document.getElementById('a-serial').value=r['Serial No.']||'';
   document.getElementById('a-date').value=r['Date Collected']||'';
   document.getElementById('a-pdate').value=r['Purchase Date']||'';
-  document.getElementById('a-cond').value=r['Condition/Status']||'';
-  document.getElementById('a-dept').value=r['Department/Location']||'';
+  setSelVal('a-cond', r['Condition/Status']);
+  setSelVal('a-dept', r['Department/Location']);
   document.getElementById('a-assign').value=r['Assigned To']||'';
   document.getElementById('a-ip').value=r['IP Address']||'';
   document.getElementById('a-mac').value=r['MAC Address']||'';
@@ -1378,12 +1613,18 @@ function openEditModal(rowNum){
   openModal('ov-asset');
 }
 
+function getSelVal(id){
+  var el=document.getElementById(id); if(!el) return '';
+  if(el.value==='__custom__') return ''; // not yet confirmed
+  return el.value;
+}
+
 function saveAsset(){
   var rowNum=document.getElementById('asset-row').value;
   var data={
-    'Equipment Type':gv('a-type'),'Brand/Model':gv('a-brand'),'Serial No.':gv('a-serial'),
-    'Date Collected':gv('a-date'),'Purchase Date':gv('a-pdate'),'Condition/Status':gv('a-cond'),
-    'Department/Location':gv('a-dept'),'Assigned To':gv('a-assign'),'IP Address':gv('a-ip'),
+    'Equipment Type':getSelVal('a-type'),'Brand/Model':gv('a-brand'),'Serial No.':gv('a-serial'),
+    'Date Collected':gv('a-date'),'Purchase Date':gv('a-pdate'),'Condition/Status':getSelVal('a-cond'),
+    'Department/Location':getSelVal('a-dept'),'Assigned To':gv('a-assign'),'IP Address':gv('a-ip'),
     'MAC Address':gv('a-mac'),'OS/Firmware':gv('a-os'),'CPU':gv('a-cpu'),
     'RAM':gv('a-ram'),'Disk':gv('a-disk'),'Remarks':gv('a-remarks')
   };
@@ -1419,7 +1660,6 @@ function deleteAsset(rowNum, desc){
 // TRANSFER
 // ══════════════════════════════════════════════════════
 function openTransferModal(){
-  // Open without pre-selected asset
   document.getElementById('xfer-row').value='';
   document.getElementById('xfer-serial').value='';
   document.getElementById('xfer-from-dept').value='';
@@ -1427,6 +1667,7 @@ function openTransferModal(){
   document.getElementById('xfer-to-dept').value='';
   document.getElementById('xfer-note').value='';
   document.getElementById('xfer-date').value=todayStr();
+  document.getElementById('xfer-by').value='';
   openModal('ov-transfer');
 }
 
@@ -1444,6 +1685,7 @@ function openTransferForRow(rowNum){
   document.getElementById('xfer-to-dept').value='';
   document.getElementById('xfer-note').value='';
   document.getElementById('xfer-date').value=todayStr();
+  document.getElementById('xfer-by').value='';
   openModal('ov-transfer');
 }
 
@@ -1452,20 +1694,23 @@ function doTransfer(){
   if(!rowNum){toast('Please select an asset from Inventory first','warn');return;}
   var r=rows.find(function(x){return x._row===parseInt(rowNum);});
   if(!r){toast('Asset not found','err');return;}
-  var toDept=document.getElementById('xfer-to-dept').value;
+  var toDept=getSelVal('xfer-to-dept');
   var note=document.getElementById('xfer-note').value;
   var date=document.getElementById('xfer-date').value||todayStr();
+  var by=document.getElementById('xfer-by').value||'ICT Manager';
   var fromDept=r['Department/Location']||'';
+  if(!toDept){toast('Please select a destination department','warn');return;}
+  if(fromDept===toDept){toast('Source and destination cannot be the same','warn');return;}
   pywebview.api.transfer_asset(
     parseInt(rowNum),
     (r['Equipment Type']||'')+(r['Brand/Model']?' '+r['Brand/Model']:''),
     r['Serial No.']||'',
-    fromDept, toDept, note, date
+    fromDept, toDept, note, date, by
   ).then(function(res){
     var obj=JSON.parse(res);
     if(obj.ok){
       closeModal('ov-transfer');
-      toast('Transfer recorded','ok');
+      toast('Transfer recorded — '+date,'ok');
       reload(function(){renderTable();renderDashboard();renderTransferLog();rebuildFilters();});
     } else toast(obj.error||'Error','err');
   });
@@ -1487,6 +1732,7 @@ function renderTransferLog(){
             '<span style="color:var(--teal);font-weight:600">'+escHtml(x.to)+'</span>'+
           '</div>'+
           (x.note?'<div style="color:var(--text3);font-size:11px;margin-top:.2rem">'+escHtml(x.note)+'</div>':'')+
+          (x.by&&x.by!=='ICT Manager'?'<div style="color:var(--text3);font-size:10.5px;margin-top:.15rem">Authorised by: '+escHtml(x.by)+'</div>':'')+
         '</div>'+
       '</div>';
     }).join('');
@@ -1495,7 +1741,7 @@ function renderTransferLog(){
 }
 
 // ══════════════════════════════════════════════════════
-// LOG EVENT / REPAIR
+// LOG EVENT / REPAIR CONFIRM
 // ══════════════════════════════════════════════════════
 function openEventModal(rowNum){
   var r=rows.find(function(x){return x._row===rowNum;});
@@ -1503,11 +1749,44 @@ function openEventModal(rowNum){
   document.getElementById('evt-asset-name').textContent=(r['Equipment Type']||'')+(r['Brand/Model']?' — '+r['Brand/Model']:'');
   document.getElementById('evt-serial').value=r['Serial No.']||'';
   document.getElementById('evt-dept').value=r['Department/Location']||'';
-  document.getElementById('hist-event').value=
-    (r['Condition/Status']||'').indexOf('Repair')>-1?'repaired':'repaired';
+  document.getElementById('evt-row').value=rowNum;
+  document.getElementById('hist-event').value='serviced';
   document.getElementById('hist-note').value='';
   document.getElementById('hist-date').value=todayStr();
+  document.getElementById('hist-cost').value='';
+  document.getElementById('hist-by').value='';
+  // Show/hide repair banner & mark-repaired button
+  var needsRepair=(r['Condition/Status']||'').indexOf('Repair')>-1;
+  document.getElementById('repair-banner').style.display=needsRepair?'block':'none';
+  document.getElementById('mark-repaired-btn').style.display=needsRepair?'':'none';
   openModal('ov-event');
+}
+
+// Called when an asset is "Needs Repair" — direct shortcut
+function openRepairConfirm(rowNum){
+  var r=rows.find(function(x){return x._row===rowNum;});
+  if(!r)return;
+  document.getElementById('evt-asset-name').textContent=(r['Equipment Type']||'')+(r['Brand/Model']?' — '+r['Brand/Model']:'');
+  document.getElementById('evt-serial').value=r['Serial No.']||'';
+  document.getElementById('evt-dept').value=r['Department/Location']||'';
+  document.getElementById('evt-row').value=rowNum;
+  document.getElementById('hist-event').value='repaired';
+  document.getElementById('hist-note').value='';
+  document.getElementById('hist-date').value=todayStr();
+  document.getElementById('hist-cost').value='';
+  document.getElementById('hist-by').value='';
+  document.getElementById('repair-banner').style.display='block';
+  document.getElementById('mark-repaired-btn').style.display='';
+  openModal('ov-event');
+}
+
+function markRepairDone(){
+  // Force event to "repaired", validate, then save
+  document.getElementById('hist-event').value='repaired';
+  if(!document.getElementById('hist-note').value.trim()){
+    document.getElementById('hist-note').value='Repair completed. Status updated to Good.';
+  }
+  saveEvent();
 }
 
 function saveEvent(){
@@ -1516,13 +1795,16 @@ function saveEvent(){
   var event=document.getElementById('hist-event').value;
   var note=document.getElementById('hist-note').value;
   var date=document.getElementById('hist-date').value||todayStr();
+  var cost=document.getElementById('hist-cost').value||'';
+  var by=document.getElementById('hist-by').value||'ICT Manager';
   var assetName=document.getElementById('evt-asset-name').textContent;
   if(!note){toast('Please enter a description','warn');return;}
-  pywebview.api.write_history(assetName,serial,dept,event,note,date).then(function(r){
+  var fullNote=note+(cost?' [Cost: KES '+cost+']':'')+(by&&by!=='ICT Manager'?' [By: '+by+']':'');
+  pywebview.api.write_history(assetName,serial,dept,event,fullNote,date,cost,by).then(function(r){
     var res=JSON.parse(r);
     if(res.ok){
       closeModal('ov-event');
-      toast('Event logged','ok');
+      toast('Event logged — '+date,'ok');
       reload(function(){renderTable();renderHistory();renderDashboard();});
     } else toast(res.error||'Error','err');
   });
@@ -1539,37 +1821,53 @@ function openReplaceModal(rowNum){
   document.getElementById('rep-old-serial').value=r['Serial No.']||'';
   document.getElementById('rep-old-dept').value=r['Department/Location']||'';
   document.getElementById('rep-asset-name').textContent='Replacing: '+(r['Equipment Type']||'')+(r['Brand/Model']?' — '+r['Brand/Model']:'');
-  document.getElementById('rep-new-type').value=r['Equipment Type']||'';
+
+  // pre-fill new type (with custom option support)
+  var typeEl=document.getElementById('rep-new-type');
+  typeEl.value=r['Equipment Type']||'';
+  if(typeEl.value!==r['Equipment Type'] && r['Equipment Type']){
+    var o=document.createElement('option'); o.value=r['Equipment Type']; o.textContent=r['Equipment Type'];
+    var customOpt=Array.from(typeEl.options).find(function(o){return o.value==='__custom__';});
+    if(customOpt) typeEl.insertBefore(o, customOpt); else typeEl.appendChild(o);
+    typeEl.value=r['Equipment Type'];
+  }
   document.getElementById('rep-new-brand').value='';
   document.getElementById('rep-new-serial').value='';
   document.getElementById('rep-new-cond').value='New';
   document.getElementById('rep-ip').value=r['IP Address']||'';
   document.getElementById('rep-date').value=todayStr();
   document.getElementById('rep-note').value='';
+  document.getElementById('rep-cost').value='';
+  document.getElementById('rep-vendor').value='';
   openModal('ov-replace');
 }
 
 function doReplace(){
   var note=document.getElementById('rep-note').value;
   if(!note){toast('Replacement note is required','warn');return;}
+  var cost=document.getElementById('rep-cost').value||'';
+  var vendor=document.getElementById('rep-vendor').value||'';
+  var newType=getSelVal('rep-new-type');
+  var newCond=getSelVal('rep-new-cond')||document.getElementById('rep-new-cond').value;
   var rep={
     oldRow:document.getElementById('rep-old-row').value,
     oldDesc:document.getElementById('rep-old-desc').value,
     oldSerial:document.getElementById('rep-old-serial').value,
     dept:document.getElementById('rep-old-dept').value,
-    newType:document.getElementById('rep-new-type').value,
+    newType:newType,
     newBrand:document.getElementById('rep-new-brand').value,
     newSerial:document.getElementById('rep-new-serial').value,
-    newCond:document.getElementById('rep-new-cond').value,
+    newCond:newCond,
     ip:document.getElementById('rep-ip').value,
     date:document.getElementById('rep-date').value||todayStr(),
-    note:note, assigned:''
+    note:note+(cost?' [Cost: KES '+cost+']':'')+(vendor?' [Vendor: '+vendor+']':''),
+    cost:cost, vendor:vendor, assigned:''
   };
   pywebview.api.record_replacement(JSON.stringify(rep)).then(function(r){
     var res=JSON.parse(r);
     if(res.ok){
       closeModal('ov-replace');
-      toast('Replacement recorded','ok');
+      toast('Replacement recorded — '+rep.date,'ok');
       reload(function(){renderTable();renderHistory();renderDashboard();rebuildFilters();});
     } else toast(res.error||'Error','err');
   });
@@ -1586,9 +1884,11 @@ function renderHistory(){
     if(q){var s=(h.date+h.asset+h.serial+h.from+h.to+h.event+h.note).toLowerCase();return s.indexOf(q)>-1;}
     return true;
   });
-  var eIco={transferred:'🔄',repaired:'🔧',replaced:'🔁',upgraded:'⬆️',reassigned:'👤',serviced:'🛠️',disposed:'🗑️',inspected:'🔍'};
+  var eIco={transferred:'🔄',repaired:'🔧',replaced:'🔁',upgraded:'⬆️',reassigned:'👤',serviced:'🛠️',disposed:'🗑️',inspected:'🔍',other:'📌'};
   var html=items.map(function(h){
     var ico=eIco[h.event]||'📌';
+    var costMatch=h.note.match(/\[Cost: KES ([^\]]+)\]/);
+    var byMatch=h.note.match(/\[By: ([^\]]+)\]/);
     return '<div class="log-item li-'+h.event+'">'+
       '<div class="log-ico">'+ico+'</div>'+
       '<div style="flex:1">'+
@@ -1596,17 +1896,216 @@ function renderHistory(){
           '<strong>'+escHtml(h.asset)+'</strong>'+
           (h.serial?' <span style="font-family:monospace;font-size:10.5px;color:var(--text3)">('+escHtml(h.serial)+')</span>':'')+
           ' — <span class="badge b-'+(h.event==='transferred'?'new':h.event==='repaired'?'good':'warn')+'">'+escHtml(h.event)+'</span>'+
+          (costMatch?'<span style="margin-left:.5rem;font-size:10.5px;color:var(--amber)">KES '+escHtml(costMatch[1])+'</span>':'')+
         '</div>'+
         (h.from&&h.to&&h.from!==h.to?
           '<div style="font-size:11.5px;color:var(--text2);margin-top:.2rem">'+escHtml(h.from)+' → <strong style="color:var(--teal)">'+escHtml(h.to)+'</strong></div>':
           (h.from?'<div style="font-size:11.5px;color:var(--text2);margin-top:.2rem">'+escHtml(h.from)+'</div>':'')
         )+
-        '<div class="log-meta">'+escHtml(h.note)+'</div>'+
-        '<div class="log-meta">'+escHtml(h.date)+'</div>'+
+        '<div class="log-meta">'+escHtml(h.note.replace(/\[Cost:[^\]]+\]/g,'').replace(/\[By:[^\]]+\]/g,'').trim())+'</div>'+
+        '<div class="log-meta" style="display:flex;gap:.75rem">'+
+          '<span>📅 '+escHtml(h.date)+'</span>'+
+          (byMatch?'<span>👤 '+escHtml(byMatch[1])+'</span>':'')+
+        '</div>'+
       '</div>'+
     '</div>';
   }).join('');
   document.getElementById('hist-list').innerHTML=html||'<div class="empty"><div class="ei">📋</div>No activity matches</div>';
+}
+
+// ══════════════════════════════════════════════════════
+// REPORT GENERATION
+// ══════════════════════════════════════════════════════
+function buildReportFilters(){
+  var depts=Object.keys(deptSet).sort();
+  var types=Object.keys(typeSet).sort();
+  var rd=document.getElementById('rpt-dept');
+  var rt=document.getElementById('rpt-type');
+  if(!rd||!rt)return;
+  var cv=rd.value; rd.innerHTML='<option value="">All Departments</option>';
+  depts.forEach(function(d){var o=document.createElement('option');o.value=d;o.textContent=d;rd.appendChild(o);}); rd.value=cv;
+  cv=rt.value; rt.innerHTML='<option value="">All Types</option>';
+  types.forEach(function(t){var o=document.createElement('option');o.value=t;o.textContent=t;rt.appendChild(o);}); rt.value=cv;
+}
+
+function generateReport(){
+  var deptFilter=document.getElementById('rpt-dept').value;
+  var typeFilter=document.getElementById('rpt-type').value;
+  var now=new Date();
+  var dateStr=now.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  var timeStr=now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+
+  // Filter active inventory
+  var active=rows.filter(function(r){
+    if(r['Condition/Status']==='Disposed') return false;
+    if(deptFilter&&r['Department/Location']!==deptFilter) return false;
+    if(typeFilter&&r['Equipment Type']!==typeFilter) return false;
+    return true;
+  });
+
+  var replaced=rows.filter(function(r){
+    return r['Condition/Status']==='Replaced'&&
+      (!deptFilter||r['Department/Location']===deptFilter)&&
+      (!typeFilter||r['Equipment Type']===typeFilter);
+  });
+
+  // Summary counts
+  var total=active.filter(function(r){return r['Condition/Status']!=='Replaced';}).length;
+  var good=active.filter(function(r){var c=r['Condition/Status']||'';return c==='Good'||c==='New'||c==='Fair';}).length;
+  var repair=active.filter(function(r){return (r['Condition/Status']||'').indexOf('Repair')>-1;}).length;
+
+  // Group by department
+  var byDept={};
+  active.filter(function(r){return r['Condition/Status']!=='Replaced';}).forEach(function(r){
+    var d=r['Department/Location']||'Unknown';
+    if(!byDept[d])byDept[d]=[];
+    byDept[d].push(r);
+  });
+
+  // Recent changes from history (last 90 days or all if small)
+  var cutoff=new Date(); cutoff.setDate(cutoff.getDate()-90);
+  var recentHistory=histItems.filter(function(h){
+    if(deptFilter&&h.from!==deptFilter&&h.to!==deptFilter) return false;
+    return true;
+  }).slice(0,50);
+
+  // Extract costs from history
+  var totalCost=0;
+  recentHistory.forEach(function(h){
+    var m=h.note.match(/\[Cost: KES ([0-9,.]+)\]/);
+    if(m) totalCost+=parseFloat(m[1].replace(',',''))||0;
+  });
+
+  var title='ICT Asset Report'+(deptFilter?' — '+deptFilter:''+(typeFilter?' — '+typeFilter:''));
+
+  var html=
+    '<div style="margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">'+
+      '<div>'+
+        '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800;color:var(--text)">'+escHtml(title)+'</div>'+
+        '<div style="font-size:11px;color:var(--text3);margin-top:.2rem">Generated '+escHtml(dateStr)+' at '+escHtml(timeStr)+'</div>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--text3);text-align:right">St. Anne Mission Hospital<br>ICT Command Centre v2</div>'+
+    '</div>'+
+
+    // KPI Summary
+    '<div class="rpt-section">'+
+      '<div class="rpt-sec-hd">📊 Summary</div>'+
+      '<div class="rpt-kpi-row">'+
+        '<div class="rpt-kpi"><div class="rpt-kpi-v">'+total+'</div><div class="rpt-kpi-l">Active Assets</div></div>'+
+        '<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--green)">'+good+'</div><div class="rpt-kpi-l">Good / New</div></div>'+
+        (repair?'<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--amber)">'+repair+'</div><div class="rpt-kpi-l">Need Repair</div></div>':'')+
+        '<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--purple)">'+replaced.length+'</div><div class="rpt-kpi-l">Replaced</div></div>'+
+        '<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--teal)">'+Object.keys(byDept).length+'</div><div class="rpt-kpi-l">Departments</div></div>'+
+        (totalCost>0?'<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--amber);font-size:14px">KES '+totalCost.toLocaleString()+'</div><div class="rpt-kpi-l">Logged Costs</div></div>':'')+
+      '</div>'+
+    '</div>'+
+
+    // Asset inventory by department
+    '<div class="rpt-section">'+
+      '<div class="rpt-sec-hd">📦 Current Inventory by Department</div>'+
+      Object.keys(byDept).sort().map(function(dept){
+        var items=byDept[dept];
+        return '<div style="padding:.5rem 1rem .25rem;font-size:11px;font-weight:700;color:var(--text2);background:rgba(0,0,0,.06);border-bottom:1px solid var(--border)">'+escHtml(dept)+' ('+items.length+' assets)</div>'+
+          '<table class="rpt-table">'+
+          '<thead><tr><th>#</th><th>Type</th><th>Brand/Model</th><th>Serial No.</th><th>Assigned To</th><th>Status</th><th>Date Collected</th><th>IP Address</th></tr></thead>'+
+          '<tbody>'+
+          items.map(function(r,i){
+            var cond=r['Condition/Status']||'';
+            var color=cond.indexOf('Repair')>-1?'color:var(--amber)':cond==='New'?'color:var(--blue)':'';
+            return '<tr>'+
+              '<td style="color:var(--text3)">'+(i+1)+'</td>'+
+              '<td>'+escHtml(r['Equipment Type']||'')+'</td>'+
+              '<td>'+escHtml(r['Brand/Model']||'')+'</td>'+
+              '<td style="font-family:monospace;font-size:11px">'+escHtml(r['Serial No.']||'—')+'</td>'+
+              '<td>'+escHtml(r['Assigned To']||'—')+'</td>'+
+              '<td style="'+color+'">'+escHtml(cond||'—')+'</td>'+
+              '<td>'+escHtml(r['Date Collected']||'—')+'</td>'+
+              '<td style="font-family:monospace;font-size:11px">'+escHtml(r['IP Address']||'—')+'</td>'+
+            '</tr>';
+          }).join('')+
+          '</tbody></table>';
+      }).join('')+
+    '</div>'+
+
+    // Assets needing repair
+    (repair>0?
+      '<div class="rpt-section">'+
+        '<div class="rpt-sec-hd">⚠️ Assets Requiring Repair</div>'+
+        '<table class="rpt-table">'+
+        '<thead><tr><th>Type</th><th>Brand/Model</th><th>Serial No.</th><th>Department</th><th>Assigned To</th><th>Remarks</th></tr></thead>'+
+        '<tbody>'+
+        active.filter(function(r){return (r['Condition/Status']||'').indexOf('Repair')>-1;}).map(function(r){
+          return '<tr style="background:rgba(240,165,0,.05)">'+
+            '<td>'+escHtml(r['Equipment Type']||'')+'</td>'+
+            '<td>'+escHtml(r['Brand/Model']||'')+'</td>'+
+            '<td style="font-family:monospace;font-size:11px">'+escHtml(r['Serial No.']||'—')+'</td>'+
+            '<td>'+escHtml(r['Department/Location']||'—')+'</td>'+
+            '<td>'+escHtml(r['Assigned To']||'—')+'</td>'+
+            '<td style="font-size:11px;color:var(--text2)">'+escHtml((r['Remarks']||'').substring(0,60))+'</td>'+
+          '</tr>';
+        }).join('')+
+        '</tbody></table>'+
+      '</div>'
+    :'')+
+
+    // Recent changes & activity
+    (recentHistory.length>0?
+      '<div class="rpt-section">'+
+        '<div class="rpt-sec-hd">🕐 Recent Changes & Activity (Last 90 Days)</div>'+
+        '<table class="rpt-table">'+
+        '<thead><tr><th>Date</th><th>Event</th><th>Asset</th><th>Serial</th><th>From</th><th>To / Dept</th><th>Description</th><th>Cost (KES)</th></tr></thead>'+
+        '<tbody>'+
+        recentHistory.map(function(h){
+          var costMatch=h.note.match(/\[Cost: KES ([^\]]+)\]/);
+          var cleanNote=h.note.replace(/\[Cost:[^\]]+\]/g,'').replace(/\[By:[^\]]+\]/g,'').trim();
+          var byMatch=h.note.match(/\[By: ([^\]]+)\]/);
+          return '<tr>'+
+            '<td style="white-space:nowrap;font-size:11px">'+escHtml(h.date)+'</td>'+
+            '<td><span style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">'+escHtml(h.event)+'</span></td>'+
+            '<td>'+escHtml(h.asset)+'</td>'+
+            '<td style="font-family:monospace;font-size:11px">'+escHtml(h.serial||'—')+'</td>'+
+            '<td style="font-size:11.5px">'+escHtml(h.from||'—')+'</td>'+
+            '<td style="font-size:11.5px;color:var(--teal);font-weight:600">'+escHtml(h.to||h.from||'—')+'</td>'+
+            '<td style="font-size:11px;color:var(--text2)">'+escHtml(cleanNote.substring(0,80))+(cleanNote.length>80?'…':'')+(byMatch?' <em>['+escHtml(byMatch[1])+']</em>':'')+'</td>'+
+            '<td style="font-family:monospace;text-align:right">'+escHtml(costMatch?costMatch[1]:'—')+'</td>'+
+          '</tr>';
+        }).join('')+
+        '</tbody></table>'+
+      '</div>'
+    :'')+
+
+    // Replacements
+    (replaced.length>0?
+      '<div class="rpt-section">'+
+        '<div class="rpt-sec-hd">🔁 Replaced Assets</div>'+
+        '<table class="rpt-table">'+
+        '<thead><tr><th>Type</th><th>Brand/Model</th><th>Serial No.</th><th>Department</th><th>Remarks</th></tr></thead>'+
+        '<tbody>'+
+        replaced.map(function(r){
+          return '<tr style="opacity:.7">'+
+            '<td>'+escHtml(r['Equipment Type']||'')+'</td>'+
+            '<td>'+escHtml(r['Brand/Model']||'')+'</td>'+
+            '<td style="font-family:monospace;font-size:11px">'+escHtml(r['Serial No.']||'—')+'</td>'+
+            '<td>'+escHtml(r['Department/Location']||'—')+'</td>'+
+            '<td style="font-size:11px;color:var(--text2)">'+escHtml((r['Remarks']||'').substring(0,80))+'</td>'+
+          '</tr>';
+        }).join('')+
+        '</tbody></table>'+
+      '</div>'
+    :'')+
+
+    '<div style="text-align:center;font-size:10.5px;color:var(--text3);padding:1rem 0;border-top:1px solid var(--border);margin-top:.5rem">'+
+      'End of Report &nbsp;·&nbsp; St. Anne Mission Hospital ICT &nbsp;·&nbsp; Generated '+escHtml(dateStr)+
+    '</div>';
+
+  document.getElementById('report-output').innerHTML=html;
+  toast('Report generated — '+total+' assets','ok');
+}
+
+function printReport(){
+  // Make sure report is generated first
+  if(!document.getElementById('report-output').innerHTML){generateReport();}
+  setTimeout(function(){window.print();},200);
 }
 
 // ══════════════════════════════════════════════════════
@@ -1628,16 +2127,16 @@ function renderInk(){
         '<div><div class="ink-label">'+names[code]+'</div><div class="ink-code">'+code+'</div></div>'+
       '</div></div>'+
       '<div class="ink-big-num" style="color:'+col+'">'+s.store+'</div>'+
-      '<div class="ink-sub">cartridges in store</div>'+
+      '<div class="ink-sub">cartridges in store &nbsp;<span style="font-weight:700;color:'+(pct<20?'var(--red)':pct<40?'var(--amber)':'var(--green)')+'">'+pct+'%</span></div>'+
       '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+col+'"></div></div>'+
       '<div class="ink-printers">'+
-        '<span>Big ICT: <input type="number" id="ink-big-'+code+'" value="'+s.bigIct+'" min="0" onchange="inkSetPrinter(''+code+'')" onclick="event.stopPropagation()"></span>'+
-        '<span>Small ICT: <input type="number" id="ink-sml-'+code+'" value="'+s.smallIct+'" min="0" onchange="inkSetPrinter(''+code+'')" onclick="event.stopPropagation()"></span>'+
+        '<span>Big ICT: <input type="number" id="ink-big-'+code+'" value="'+s.bigIct+'" min="0" onchange="inkSetPrinter(\''+code+'\')" onclick="event.stopPropagation()"></span>'+
+        '<span>Small ICT: <input type="number" id="ink-sml-'+code+'" value="'+s.smallIct+'" min="0" onchange="inkSetPrinter(\''+code+'\')" onclick="event.stopPropagation()"></span>'+
       '</div>'+
       '<div class="ink-controls">'+
-        '<button class="ic-btn minus" onclick="inkAct(''+code+'','use')">−</button>'+
+        '<button class="ic-btn minus" onclick="inkAct(\''+code+'\',\'use\')">−</button>'+
         '<input type="number" class="ic-qty" id="ink-qty-'+code+'" value="1" min="1" max="20">'+
-        '<button class="ic-btn plus" onclick="inkAct(''+code+'','restock')">＋</button>'+
+        '<button class="ic-btn plus" onclick="inkAct(\''+code+'\',\'restock\')">＋</button>'+
         '<span class="ic-pct">'+pct+'%</span>'+
       '</div>'+
     '</div>';
@@ -1688,7 +2187,7 @@ function renderCfgList(elId, key){
   var el=document.getElementById(elId);
   el.innerHTML=(cfg[key]||[]).map(function(v){
     return '<span class="cfg-tag">'+escHtml(v)+
-      '<button class="rm" onclick="removeCfg(''+key+'',''+escHtml(v).replace(/'/g,"\'")+'')" title="Remove">×</button>'+
+      '<button class="rm" onclick="removeCfg(\''+key+'\',\''+escHtml(v).replace(/'/g,"\\'")+'\')" title="Remove">×</button>'+
       '</span>';
   }).join('');
 }
@@ -1726,24 +2225,40 @@ function removeCfg(key, val){
 // ══════════════════════════════════════════════════════
 // SECURITY
 // ══════════════════════════════════════════════════════
+function doLogout(){
+  if(!confirm('Log out now? You will need your PIN to get back in.')) return;
+  // Hide app, clear state, show login
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-overlay').style.display='flex';
+  document.getElementById('pin-input').value='';
+  document.getElementById('login-err').style.display='none';
+  document.getElementById('login-form').style.display='';
+  document.getElementById('setup-form').style.display='none';
+  // Reset in-memory state so stale data can't be read
+  rows=[]; inkState={}; logItems=[]; histItems=[];
+  setTimeout(function(){document.getElementById('pin-input').focus();},150);
+  toast('Logged out successfully','info');
+}
+
 function changePin(){
   var old=document.getElementById('pin-old').value;
   var np=document.getElementById('pin-new2').value;
   var cnf=document.getElementById('pin-cnf').value;
   var msg=document.getElementById('pin-msg');
+  msg.textContent='';
+  if(!old){msg.style.color='var(--red)';msg.textContent='Please enter your current PIN.';return;}
   if(np.length<4){msg.style.color='var(--red)';msg.textContent='New PIN must be at least 4 characters.';return;}
   if(np!==cnf){msg.style.color='var(--red)';msg.textContent='New PINs do not match.';return;}
+  if(np===old){msg.style.color='var(--amber)';msg.textContent='New PIN must be different from current PIN.';return;}
   pywebview.api.verify_pin(old).then(function(r){
     var res=JSON.parse(r);
-    if(!res.valid){msg.style.color='var(--red)';msg.textContent='Current PIN is incorrect.';return;}
+    if(!res.valid){msg.style.color='var(--red)';msg.textContent='Current PIN is incorrect.';document.getElementById('pin-old').focus();return;}
     pywebview.api.set_pin(np).then(function(r2){
       var res2=JSON.parse(r2);
       if(res2.ok){
-        msg.style.color='var(--green)';msg.textContent='PIN updated successfully.';
-        document.getElementById('pin-old').value='';
-        document.getElementById('pin-new2').value='';
-        document.getElementById('pin-cnf').value='';
-      } else {msg.style.color='var(--red)';msg.textContent=res2.error||'Error.';}
+        msg.style.color='var(--green)';msg.textContent='✅ PIN updated! Logging you out…';
+        setTimeout(function(){doLogout();},1200);
+      } else {msg.style.color='var(--red)';msg.textContent=res2.error||'Error updating PIN.';}
     });
   });
 }
@@ -1780,7 +2295,6 @@ function toast(msg, type){
   var t=document.createElement('div');
   t.className='toast t-'+(type||'info');
   var icons={ok:'✅',err:'❌',warn:'⚠️',info:'ℹ️'};
-  t.innerHTML=icons[type]||'ℹ️'+'&nbsp; '+escHtml(msg);
   t.textContent=(icons[type]||'ℹ️')+' '+msg;
   wrap.appendChild(t);
   requestAnimationFrame(function(){t.classList.add('show');});
@@ -1798,6 +2312,7 @@ document.querySelectorAll('.overlay').forEach(function(ov){
 window.addEventListener('pywebviewready', function(){
   initLogin();
 });
+
 </script>
 </body>
 </html>
