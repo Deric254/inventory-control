@@ -10,30 +10,43 @@
 
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#080c10;
-  --bg2:#0e1318;
-  --bg3:#141a20;
-  --bg4:#1c242c;
-  --bg5:#232d38;
-  --text:#dce8f0;
-  --text2:#7a93a8;
-  --text3:#3d5060;
+  /* ── Dark base ── */
+  --bg:#090b0e;
+  --bg2:#0f1115;
+  --bg3:#16191f;
+  --bg4:#1d2128;
+  --bg5:#252930;
+  --text:#e8dfd4;
+  --text2:#8a7f74;
+  --text3:#4a4340;
   --border:rgba(255,255,255,.055);
   --border2:rgba(255,255,255,.10);
-  --blue:#4d9fff;
-  --blue-dim:rgba(77,159,255,.12);
+
+  /* ── St. Anne brand palette ── */
+  --brand:#7B1C2E;          /* deep maroon — primary */
+  --brand-dim:rgba(123,28,46,.18);
+  --brand-lt:#9e2438;       /* lighter maroon for hover */
+  --brand-glow:rgba(123,28,46,.45);
+  --gold:#C49A1A;           /* mission gold — accent */
+  --gold-lt:#F0C040;        /* highlight gold */
+  --gold-dim:rgba(196,154,26,.15);
+
+  /* ── Semantic colours ── */
+  --blue:#C49A1A;           /* primary actions → gold */
+  --blue-dim:rgba(196,154,26,.14);
   --green:#29d67a;
   --green-dim:rgba(41,214,122,.10);
-  --amber:#f0a500;
-  --amber-dim:rgba(240,165,0,.12);
+  --amber:#e8960a;
+  --amber-dim:rgba(232,150,10,.13);
   --red:#ff4d5e;
   --red-dim:rgba(255,77,94,.10);
-  --purple:#a78bff;
-  --purple-dim:rgba(167,139,255,.10);
+  --purple:#c98bff;
+  --purple-dim:rgba(201,139,255,.10);
   --teal:#00c9b8;
   --teal-dim:rgba(0,201,184,.10);
   --cyan:#00e5d4;
-  --accent-line:rgba(77,159,255,.6);
+  --accent-line:rgba(196,154,26,.7);
+
   font-family:'Inter',system-ui,sans-serif;
   font-size:13px;
 }
@@ -43,7 +56,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:4px}
+::-webkit-scrollbar-thumb{background:rgba(123,28,46,.35);border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:var(--text3)}
 
 /* ── LAYOUT ── */
@@ -53,12 +66,12 @@ body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-
 .sidebar{
   width:220px;min-width:220px;
   background:var(--bg2);
-  border-right:1px solid var(--border);
+  border-right:1px solid rgba(123,28,46,.3);
   display:flex;flex-direction:column;
   position:sticky;top:0;height:100vh;overflow-y:auto;
   z-index:50;
 }
-.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);overflow-y:auto;height:100vh}
 
 /* ── TOPBAR ── */
 .topbar{
@@ -68,8 +81,9 @@ body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-
   display:flex;align-items:center;justify-content:space-between;gap:1rem;
   position:sticky;top:0;z-index:30;flex-wrap:wrap;
   backdrop-filter:blur(12px);
+  flex-shrink:0;
 }
-.content{padding:1.5rem;flex:1}
+.content{padding:1.5rem;flex:1;min-height:0}
 
 /* ── BRAND ── */
 .brand{
@@ -79,10 +93,10 @@ body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-
 }
 .brand-mark{
   width:34px;height:34px;border-radius:9px;
-  background:linear-gradient(135deg,#4d9fff 0%,#a78bff 100%);
+  background:linear-gradient(135deg,#7B1C2E 0%,#C49A1A 100%);
   display:flex;align-items:center;justify-content:center;
-  font-size:17px;flex-shrink:0;
-  box-shadow:0 0 14px rgba(77,159,255,.35);
+  font-size:17px;flex-shrink:0;color:#fff;
+  box-shadow:0 0 14px rgba(123,28,46,.45);
 }
 .brand-name{
   font-family:'Syne',sans-serif;
@@ -112,15 +126,15 @@ body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-
 }
 .nav-btn:hover{background:var(--bg4);color:var(--text)}
 .nav-btn.on{
-  background:var(--blue-dim);
-  color:var(--blue);
+  background:var(--brand-dim);
+  color:var(--gold-lt);
   font-weight:600;
 }
 .nav-btn.on::before{
   content:'';
   position:absolute;left:0;top:50%;transform:translateY(-50%);
   width:3px;height:60%;border-radius:0 3px 3px 0;
-  background:var(--blue);margin-left:-8px;
+  background:var(--brand);margin-left:-8px;
   opacity:.9;
 }
 .nav-btn .ni{font-size:14px;width:18px;text-align:center;flex-shrink:0;opacity:.85}
@@ -177,12 +191,13 @@ body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-
 .btn:hover{background:var(--bg4);border-color:var(--border2)}
 .btn:active{transform:scale(.97)}
 .btn.pri{
-  background:var(--blue);color:#000;
-  border-color:var(--blue);
+  background:linear-gradient(135deg,var(--brand) 0%,#9e2438 100%);
+  color:#fff;
+  border-color:var(--brand);
   font-weight:700;
-  box-shadow:0 0 12px rgba(77,159,255,.3);
+  box-shadow:0 0 12px var(--brand-glow);
 }
-.btn.pri:hover{filter:brightness(1.1);box-shadow:0 0 18px rgba(77,159,255,.45)}
+.btn.pri:hover{filter:brightness(1.12);box-shadow:0 0 18px var(--brand-glow)}
 .btn.ok{background:var(--green);color:#000;border-color:var(--green);font-weight:700;box-shadow:0 0 10px rgba(41,214,122,.25)}
 .btn.ok:hover{filter:brightness(1.1)}
 .btn.del{background:var(--red-dim);color:var(--red);border-color:rgba(255,77,94,.3)}
@@ -219,7 +234,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-
   top:0;left:0;right:0;height:2px;
   border-radius:12px 12px 0 0;
 }
-.kpi.blue::before{background:linear-gradient(90deg,#4d9fff,#79c0ff)}
+.kpi.blue::before{background:linear-gradient(90deg,var(--brand),#9e2438)}
 .kpi.green::before{background:linear-gradient(90deg,#29d67a,#5ef0a2)}
 .kpi.amber::before{background:linear-gradient(90deg,#f0a500,#ffd060)}
 .kpi.red::before{background:linear-gradient(90deg,#ff4d5e,#ff8a93)}
@@ -251,7 +266,8 @@ body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;-
   color:var(--text2);text-transform:uppercase;letter-spacing:.07em;
 }
 .card-bd{padding:1.25rem}
-.charts2{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.875rem}
+.charts2{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.875rem;align-items:start}
+.charts2 .card{min-height:270px}
 @media(max-width:800px){.charts2{grid-template-columns:1fr}}
 
 /* ── TOOLBAR ── */
@@ -578,7 +594,9 @@ td{padding:.55rem .95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowr
 }
 /* ── MISC ── */
 .master-path{font-size:10px;color:var(--text3);padding:.25rem .875rem;background:var(--bg3);border-top:1px solid var(--border)}
-.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 2.5s ease-in-out infinite;display:inline-block;margin-right:5px}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold);display:inline-block;margin-right:.4rem;animation:pulse 2s infinite}
+.xfer-pick-item{display:flex;align-items:center;gap:.75rem;padding:.55rem .75rem;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;border-radius:7px}
+.xfer-pick-item:hover{background:var(--bg3)}
 
 /* ── MONOSPACE ── */
 code, .mono{font-family:'DM Mono',monospace}
@@ -590,10 +608,10 @@ code, .mono{font-family:'DM Mono',monospace}
 <div id="login-overlay" style="position:fixed;inset:0;background:var(--bg);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;">
   <!-- subtle grid bg -->
   <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(77,159,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(77,159,255,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none"></div>
-  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(77,159,255,.06) 0%,transparent 70%);pointer-events:none"></div>
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(123,28,46,.10) 0%,transparent 70%);pointer-events:none"></div>
   <div style="position:relative;background:var(--bg2);border:1px solid var(--border2);border-radius:18px;padding:2.75rem 2.25rem;width:380px;max-width:92vw;box-shadow:0 32px 80px rgba(0,0,0,.6);">
     <div style="text-align:center;margin-bottom:2rem">
-      <div style="width:60px;height:60px;border-radius:16px;background:linear-gradient(135deg,#4d9fff,#a78bff);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 1rem;box-shadow:0 0 24px rgba(77,159,255,.4)">🏥</div>
+      <div style="width:60px;height:60px;border-radius:16px;background:linear-gradient(135deg,#7B1C2E,#C49A1A);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 1rem;box-shadow:0 0 24px rgba(77,159,255,.4)">🏥</div>
       <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:.4rem;color:var(--text)">St. Anne ICT</div>
       <div style="font-size:12px;color:var(--text3);letter-spacing:.03em">Command Centre v2 &nbsp;·&nbsp; Restricted Access</div>
     </div>
@@ -633,8 +651,14 @@ code, .mono{font-family:'DM Mono',monospace}
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="brand">
-    <div class="brand-mark">🏥</div>
-    <div><div class="brand-name">St. Anne ICT</div><div class="brand-sub">Command Centre v2</div></div>
+    <div class="brand-mark" id="sidebar-logo-mark">
+      <img id="sidebar-logo-img" src="" alt="" style="width:30px;height:30px;object-fit:contain;display:none;border-radius:6px">
+      <span id="sidebar-logo-fallback" style="font-size:18px">✝</span>
+    </div>
+    <div>
+      <div class="brand-name">St. Anne ICT</div>
+      <div class="brand-sub">Command Centre</div>
+    </div>
   </div>
   <nav class="nav">
     <div class="nav-hd">Main</div>
@@ -656,7 +680,7 @@ code, .mono{font-family:'DM Mono',monospace}
     <button class="btn ghost sm" onclick="openExcel()" style="width:100%;justify-content:center;font-size:11.5px;margin-bottom:.375rem">📁 Open Excel File</button>
     <div style="border-top:1px solid var(--border);padding-top:.625rem;margin-top:.25rem">
       <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
-        <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#4d9fff,#a78bff);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🔑</div>
+        <div style="width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#7B1C2E,#C49A1A);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🔑</div>
         <div>
           <div style="font-size:11px;color:var(--text);font-weight:600">ICT Manager</div>
           <div style="font-size:10px;color:var(--text3)">Authenticated</div>
@@ -720,7 +744,21 @@ code, .mono{font-family:'DM Mono',monospace}
   <div class="content sec" id="sec-transfers">
     <div style="margin-bottom:1rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
       <div style="flex:1;font-size:12.5px;color:var(--text2)">Transfer an asset from one department to another. All transfers are logged automatically.</div>
-      <button class="btn teal" onclick="openTransferModal()">🔄 New Transfer</button>
+      <button class="btn teal" onclick="openTransferPicker()">🔄 New Transfer</button>
+    </div>
+    <div id="xfer-picker" style="display:none;margin-bottom:1rem">
+      <div class="card">
+        <div class="card-hd"><span class="card-title">🔍 Select Asset to Transfer</span>
+          <button class="btn ghost sm" onclick="document.getElementById('xfer-picker').style.display='none'">✕ Cancel</button>
+        </div>
+        <div class="card-bd">
+          <div class="toolbar" style="margin-bottom:.5rem">
+            <div class="srch"><span class="srch-ico">🔍</span><input id="xfer-pick-search" placeholder="Search assets…" oninput="renderXferPicker()"></div>
+            <select class="fsel" id="xfer-pick-dept" onchange="renderXferPicker()"><option value="">All depts</option></select>
+          </div>
+          <div id="xfer-pick-list" style="max-height:300px;overflow-y:auto"></div>
+        </div>
+      </div>
     </div>
     <div class="card">
       <div class="card-hd"><span class="card-title">Transfer History</span></div>
@@ -748,14 +786,46 @@ code, .mono{font-family:'DM Mono',monospace}
 
   <!-- REPORT -->
   <div class="content sec" id="sec-report">
-    <div style="margin-bottom:1rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-      <div style="flex:1;font-size:12.5px;color:var(--text2)">Generate a concise portable asset report showing inventory, changes, costs and full audit trail.</div>
-      <select class="fsel" id="rpt-dept"><option value="">All Departments</option></select>
-      <select class="fsel" id="rpt-type"><option value="">All Types</option></select>
-      <button class="btn teal" onclick="generateReport()">📄 Generate Report</button>
-      <button class="btn ghost" onclick="printReport()">🖨️ Print / Save PDF</button>
+    <div class="card" style="margin-bottom:.875rem">
+      <div class="card-hd"><span class="card-title">📄 Professional PDF Report</span></div>
+      <div class="card-bd">
+        <div style="font-size:12.5px;color:var(--text2);margin-bottom:1.1rem;line-height:1.6">
+          Generate a full professional ICT Asset Management Report as a PDF file. The report includes an
+          <strong>Executive Summary</strong>, equipment type breakdown, departmental distribution, assets requiring
+          attention, recent activity log, and a complete inventory. Place a <code>logo.png</code> file in the
+          app folder and it will appear on every page header.
+        </div>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem">
+          <div class="ff" style="min-width:180px">
+            <label>Filter by Department</label>
+            <select class="fsel" id="rpt-dept" style="width:100%"><option value="">All Departments</option></select>
+          </div>
+          <div class="ff" style="min-width:160px">
+            <label>Filter by Type</label>
+            <select class="fsel" id="rpt-type" style="width:100%"><option value="">All Types</option></select>
+          </div>
+          <button class="btn pri" onclick="generatePdfReport()" id="pdf-gen-btn" style="height:34px;align-self:flex-end">
+            📄 Generate &amp; Open PDF
+          </button>
+        </div>
+        <div id="pdf-status" style="font-size:12px;min-height:1.4em"></div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:.875rem 1rem;margin-top:.5rem">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem">📁 Logo Setup</div>
+          <div style="font-size:12px;color:var(--text2)">
+            To include your hospital logo on the report, place a file named <code style="background:var(--bg2);padding:1px 5px;border-radius:4px">logo.png</code>
+            in the same folder as <code style="background:var(--bg2);padding:1px 5px;border-radius:4px">main.py</code>.
+            The logo will appear in the header of every page alongside the hospital name and slogan.
+          </div>
+        </div>
+      </div>
     </div>
-    <div id="report-output"></div>
+
+    <div class="card">
+      <div class="card-hd"><span class="card-title">🔍 Quick Preview (HTML)</span>
+        <button class="btn ghost sm" onclick="generateHtmlReport()">Generate Preview</button>
+      </div>
+      <div class="card-bd" id="report-output" style="max-height:600px;overflow-y:auto"></div>
+    </div>
   </div>
 
   <!-- INK -->
@@ -827,7 +897,7 @@ code, .mono{font-family:'DM Mono',monospace}
       <div class="card-hd"><span class="card-title">🚪 Session</span></div>
       <div class="card-bd">
         <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
-          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#4d9fff,#a78bff);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 0 16px rgba(77,159,255,.3)">🔑</div>
+          <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#7B1C2E,#C49A1A);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 0 16px rgba(77,159,255,.3)">🔑</div>
           <div>
             <div style="font-size:13.5px;font-weight:700;color:var(--text)">ICT Manager</div>
             <div style="font-size:11px;color:var(--text3);margin-top:.2rem">Active session &nbsp;·&nbsp; <span class="pulse" style="width:5px;height:5px;display:inline-block"></span> Authenticated</div>
@@ -1061,17 +1131,35 @@ function Chart(canvas, config){
   this.data = config.data || {};
   this.config = config || {};
   this._meta = {data: []};
+  // Store chart reference for resize
+  this._resizeObs = null;
   this.draw();
+  this._watchResize();
 }
-Chart.prototype.destroy = function(){};
+Chart.prototype.destroy = function(){
+  if(this._resizeObs){ this._resizeObs.disconnect(); this._resizeObs=null; }
+};
 Chart.prototype.getDatasetMeta = function(){return this._meta;};
+Chart.prototype._watchResize = function(){
+  var self = this;
+  if(typeof ResizeObserver !== 'undefined'){
+    self._resizeObs = new ResizeObserver(function(){ self.draw(); });
+    if(self.canvas.parentElement) self._resizeObs.observe(self.canvas.parentElement);
+  }
+};
 Chart.prototype._size = function(){
   var parent = this.canvas.parentElement;
-  var w = Math.max(260, parent ? parent.clientWidth : this.canvas.clientWidth || 320);
-  var h = Math.max(160, this.canvas.getAttribute('height') || this.canvas.clientHeight || 160);
+  // Use parent's actual rendered width for responsiveness
+  var w = parent ? parent.getBoundingClientRect().width : 0;
+  if(!w || w < 1) w = this.canvas.clientWidth || 0;
+  if(!w || w < 1) w = 320;
+  w = Math.floor(w);
+  // Height: explicit attribute takes priority, else 200px default
+  var hAttr = parseInt(this.canvas.getAttribute('data-height') || this.canvas.getAttribute('height') || '0');
+  var h = hAttr > 0 ? hAttr : 200;
   this.canvas.width = w;
   this.canvas.height = h;
-  return {w:w,h:h};
+  return {w:w, h:h};
 };
 Chart.prototype.draw = function(){
   var size = this._size();
@@ -1113,7 +1201,9 @@ Chart.prototype._drawBar = function(size){
     ctx.fillStyle = '#8b949e';
     ctx.textAlign = 'center';
     var txt = String(label || '');
-    if(txt.length > 10) txt = txt.slice(0,9) + '…';
+    // Smart truncation based on available bar width
+    var maxChars = Math.max(4, Math.floor(barW / 6));
+    if(txt.length > maxChars) txt = txt.slice(0,maxChars-1) + '…';
     ctx.fillText(txt, x+barW/2, size.h-18);
   });
 };
@@ -1124,8 +1214,8 @@ Chart.prototype._drawDoughnut = function(size){
   var values = ds.data || [];
   var colors = ds.backgroundColor || ['#58a6ff','#3fb950','#d29922','#bc8cff'];
   var total = values.reduce(function(a,b){return a+(+b||0);},0) || 1;
-  var cx = Math.floor(size.w * .38), cy = Math.floor(size.h / 2);
-  var outer = Math.max(48, Math.min(size.h, size.w*.72)/2 - 10);
+  var cx = Math.floor(size.w * .32), cy = Math.floor(size.h / 2);
+  var outer = Math.max(48, Math.min(size.h, size.h*.88)/2 - 8);
   var inner = outer * .55;
   var start = -Math.PI/2;
   this._meta.data = [];
@@ -1140,16 +1230,24 @@ Chart.prototype._drawDoughnut = function(size){
     this._meta.data.push({x:cx,y:cy,startAngle:start,endAngle:end,outerRadius:outer,innerRadius:inner});
     start = end;
   }, this);
-  ctx.fillStyle = '#8b949e';
+  // Legend on the right side
   ctx.font = '11px Inter, sans-serif';
   ctx.textAlign = 'left';
+  var legendX = Math.floor(size.w * .68);
+  var legendStartY = Math.max(16, Math.floor(size.h/2) - labels.length*10);
   labels.forEach(function(label,i){
-    var y = 22 + i*18;
-    var x = Math.floor(size.w*.72);
+    var val = values[i] || 0;
+    var pct = total > 0 ? Math.round(val/total*100) : 0;
+    var y = legendStartY + i*22;
     ctx.fillStyle = colors[i % colors.length];
-    ctx.fillRect(x,y-8,10,10);
+    ctx.beginPath(); ctx.roundRect(legendX, y-8, 10, 10, 2); ctx.fill();
+    ctx.fillStyle = '#c8d3dc';
+    var lbl = label.length > 14 ? label.slice(0,13)+'…' : label;
+    ctx.fillText(lbl, legendX+14, y);
     ctx.fillStyle = '#8b949e';
-    ctx.fillText(label, x+16, y);
+    ctx.font = '10px Inter, sans-serif';
+    ctx.fillText(val+' ('+pct+'%)', legendX+14, y+12);
+    ctx.font = '11px Inter, sans-serif';
   });
 };
 // ══════════════════════════════════════════════════════
@@ -1186,6 +1284,8 @@ function doLogin(){
       document.getElementById('login-overlay').style.display='none';
       document.getElementById('app').style.display='flex';
       loadApp();
+      // log after loadApp fires so it doesn't compete for the Excel lock
+      setTimeout(function(){ pywebview.api.log_action('LOGIN','User authenticated and session started'); }, 800);
     } else {
       var el=document.getElementById('login-err');
       el.style.display='';
@@ -1208,6 +1308,8 @@ function doSetPin(){
       document.getElementById('login-overlay').style.display='none';
       document.getElementById('app').style.display='flex';
       loadApp();
+      // log after loadApp fires so it doesn't compete for the Excel lock
+      setTimeout(function(){ pywebview.api.log_action('SETUP','Initial PIN set — first-time system setup completed'); }, 800);
     } else {
       el.style.display=''; el.textContent=res.error||'Error setting PIN.';
     }
@@ -1218,6 +1320,17 @@ function doSetPin(){
 // LOAD APP
 // ══════════════════════════════════════════════════════
 function loadApp(){
+  // Try to load logo.png via the API for sidebar and login screen branding
+  try{
+    pywebview.api.get_logo_path().then(function(p){
+      if(p){
+        var img=document.getElementById('sidebar-logo-img');
+        var fallback=document.getElementById('sidebar-logo-fallback');
+        if(img){img.src=p;img.style.display='';if(fallback)fallback.style.display='none';}
+      }
+    }).catch(function(){});
+  }catch(e){}
+
   document.getElementById('loading').style.display='flex';
   Promise.all([
     pywebview.api.load_data(),
@@ -1229,8 +1342,8 @@ function loadApp(){
     if(cr.ok){ cfg=cr.config; }
     document.getElementById('loading').style.display='none';
     buildDropdowns();
-    rebuildFilters();
-    renderDashboard();
+    rebuildFilters();   // populates deptSet/typeSet and calls updateTopKPIs
+    renderDashboard();  // reads deptSet — must come after rebuildFilters
     renderTable();
     renderHistory();
     renderInk();
@@ -1392,8 +1505,11 @@ function rebuildFilters(){
 }
 
 function updateTopKPIs(){
-  var total=rows.filter(function(r){return r['Condition/Status']!=='Replaced';}).length;
-  var repair=rows.filter(function(r){return (r['Condition/Status']||'').indexOf('Repair')>-1;}).length;
+  var total=rows.filter(function(r){var c=(r['Condition/Status']||'').trim();return c!=='Replaced'&&c!=='Disposed';}).length;
+  var repair=rows.filter(function(r){
+    var c=(r['Condition/Status']||'').trim();
+    return c!=='Replaced'&&c!=='Disposed'&&c.toLowerCase().indexOf('repair')>-1;
+  }).length;
   var depts=Object.keys(deptSet).length;
   document.getElementById('tb-total').textContent=total;
   document.getElementById('tb-repair').textContent=repair;
@@ -1407,25 +1523,32 @@ function updateTopKPIs(){
 // DASHBOARD
 // ══════════════════════════════════════════════════════
 function renderDashboard(){
-  var active=rows.filter(function(r){return r['Condition/Status']!=='Replaced'&&r['Condition/Status']!=='Disposed';});
-  var total=active.length;
-  var good=0,newC=0,repair=0,replaced=0,disposed=0;
-  active.forEach(function(r){
-    var c=r['Condition/Status']||'';
-    if(c==='New')newC++;
-    else if(c==='Good'||c==='Fair')good++;
-    else if(c.indexOf('Repair')>-1)repair++;
-  });
+  // ── KPI counts: every row falls into exactly one bucket ──
+  var newC=0, good=0, repair=0, other=0, replaced=0, disposed=0;
   rows.forEach(function(r){
-    if(r['Condition/Status']==='Replaced')replaced++;
-    if(r['Condition/Status']==='Disposed')disposed++;
+    var c=(r['Condition/Status']||'').trim();
+    var cl=c.toLowerCase();
+    if(c==='Replaced')              { replaced++; return; }
+    if(c==='Disposed')              { disposed++; return; }
+    if(c==='New')                   { newC++;     return; }
+    if(cl.indexOf('repair')>-1)     { repair++;   return; }  // catches Needs Repair, Fair (Needs Repair), etc.
+    if(c===''||c==='Good'||c==='Fair'||cl.indexOf('good')>-1||cl.indexOf('fair')>-1) { good++; return; }
+    // Everything else (custom statuses) goes into good bucket
+    good++;
   });
+  var active=rows.filter(function(r){
+    var c=(r['Condition/Status']||'').trim();
+    return c!=='Replaced'&&c!=='Disposed';
+  });
+  var total=active.length; // newC + good + repair (should always add up now)
   var depts=Object.keys(deptSet).length;
+  var goodTotal=newC+good;
   document.getElementById('kpi-grid').innerHTML=
-    kpi('blue','📦',total,'Total Assets',depts+' departments')+
-    kpi('green','✅',newC+good,'Good / New',Math.round(total?((newC+good)/total)*100:0)+'% of fleet')+
+    kpi('blue','📦',total,'Total Active Assets',depts+' departments')+
+    kpi('green','✅',goodTotal,'Good / New',Math.round(total?((goodTotal)/total)*100:0)+'% of fleet')+
     kpi('amber','⚠️',repair,'Need Repair','Requires attention')+
     kpi('purple','🔁',replaced,'Replaced','Lifecycle events')+
+    kpi('cyan','🗑️',disposed,'Disposed','Retired assets')+
     kpi('teal','🏢',depts,'Departments','Active locations');
 
   // Charts
@@ -1433,8 +1556,8 @@ function renderDashboard(){
   active.forEach(function(r){var d=r['Department/Location']||'Unknown';deptCounts[d]=(deptCounts[d]||0)+1;});
   var deptKeys=Object.keys(deptCounts).sort(function(a,b){return deptCounts[b]-deptCounts[a];}).slice(0,8);
 
-  // Condition distribution — only non-zero
-  var condData={'New':newC,'Good/Fair':good,'Needs Repair':repair,'Replaced':replaced};
+  // Condition distribution — only active (non-replaced, non-disposed), non-zero
+  var condData={'New':newC,'Good / Fair':good,'Needs Repair':repair};
   var condLabels=Object.keys(condData).filter(function(k){return condData[k]>0;});
   var condValues=condLabels.map(function(k){return condData[k];});
   var condTotal=condValues.reduce(function(a,b){return a+b;},0);
@@ -1443,8 +1566,8 @@ function renderDashboard(){
   var pieColors=['#58a6ff','#3fb950','#d29922','#bc8cff'];
 
   document.getElementById('chart-area').innerHTML=
-    '<div class="card"><div class="card-hd"><span class="card-title">Assets by Department</span></div><div class="card-bd"><canvas id="ch-dept" height="160"></canvas></div></div>'+
-    '<div class="card"><div class="card-hd"><span class="card-title">Condition Distribution</span></div><div class="card-bd"><canvas id="ch-cond" height="160"></canvas></div></div>';
+    '<div class="card"><div class="card-hd"><span class="card-title">Assets by Department</span></div><div class="card-bd"><canvas id="ch-dept" data-height="200" style="display:block;width:100%"></canvas></div></div>'+
+    '<div class="card"><div class="card-hd"><span class="card-title">Condition Distribution</span></div><div class="card-bd"><canvas id="ch-cond" data-height="200" style="display:block;width:100%"></canvas></div></div>';
 
   setTimeout(function(){
     new Chart(document.getElementById('ch-dept'),{type:'bar',data:{labels:deptKeys,datasets:[{data:deptKeys.map(function(k){return deptCounts[k];}),backgroundColor:colors,borderRadius:4,borderSkipped:false}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(240,246,252,.04)'}}},responsive:true,maintainAspectRatio:false}});
@@ -1479,21 +1602,21 @@ function renderDashboard(){
         id:'pct-labels',
         afterDraw:function(chart){
           var ctx2=chart.ctx;
-          var datasets=chart.data.datasets[0];
+          var ds=chart.data.datasets[0];
           var meta=chart.getDatasetMeta(0);
-          if(!meta.data) return;
+          if(!meta||!meta.data||!meta.data.length) return;
+          var tot2=ds.data.reduce(function(a,b){return a+(+b||0);},0)||1;
           ctx2.save();
           meta.data.forEach(function(arc,i){
-            var val=datasets.data[i];
-            var pct=condTotal>0?Math.round(val/condTotal*100):0;
-            if(pct<4) return; // skip tiny slices
-            var cx=arc.x, cy=arc.y;
+            var val=ds.data[i]||0;
+            var pct=Math.round(val/tot2*100);
+            if(pct<5) return;
             var angle=(arc.startAngle+arc.endAngle)/2;
             var r=(arc.outerRadius+arc.innerRadius)/2;
-            var x=cx+Math.cos(angle)*r;
-            var y=cy+Math.sin(angle)*r;
-            ctx2.fillStyle='#fff';
-            ctx2.font='bold 11px Inter,sans-serif';
+            var x=arc.x+Math.cos(angle)*r;
+            var y=arc.y+Math.sin(angle)*r;
+            ctx2.fillStyle='rgba(255,255,255,.95)';
+            ctx2.font='bold 10px Inter,sans-serif';
             ctx2.textAlign='center';
             ctx2.textBaseline='middle';
             ctx2.fillText(pct+'%',x,y);
@@ -1760,6 +1883,47 @@ function deleteAsset(rowNum, desc){
 // ══════════════════════════════════════════════════════
 // TRANSFER
 // ══════════════════════════════════════════════════════
+function openTransferPicker(){
+  var el=document.getElementById('xfer-picker');
+  el.style.display='';
+  // Populate dept filter
+  var depts=Object.keys(deptSet).sort();
+  var pd=document.getElementById('xfer-pick-dept');
+  pd.innerHTML='<option value="">All depts</option>';
+  depts.forEach(function(d){var o=document.createElement('option');o.value=d;o.textContent=d;pd.appendChild(o);});
+  document.getElementById('xfer-pick-search').value='';
+  renderXferPicker();
+  el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function renderXferPicker(){
+  var q=(document.getElementById('xfer-pick-search').value||'').toLowerCase();
+  var fd=document.getElementById('xfer-pick-dept').value;
+  var filtered=rows.filter(function(r){
+    if(r['Condition/Status']==='Replaced'||r['Condition/Status']==='Disposed') return false;
+    if(fd&&r['Department/Location']!==fd) return false;
+    if(q){var h=Object.values(r).join(' ').toLowerCase();return h.indexOf(q)>-1;}
+    return true;
+  }).slice(0,50);
+  var html=filtered.map(function(r){
+    return '<div '+
+      'class="xfer-pick-item" '+
+      'onclick="pickAssetForTransfer('+r._row+')">'+
+      '<div style="flex:1">'+
+        '<div style="font-size:12.5px;font-weight:600">'+escHtml(r['Equipment Type']||'')+(r['Brand/Model']?' — '+escHtml(r['Brand/Model']):'')+'</div>'+
+        '<div style="font-size:11px;color:var(--text3);margin-top:.15rem">S/N: <code style="font-size:10.5px">'+escHtml(r['Serial No.']||'—')+'</code> &nbsp;·&nbsp; '+escHtml(r['Department/Location']||'—')+'</div>'+
+      '</div>'+
+      '<button class="btn sm teal">Select →</button>'+
+    '</div>';
+  }).join('');
+  document.getElementById('xfer-pick-list').innerHTML=html||'<div class="empty"><div class="ei">📦</div>No assets match</div>';
+}
+
+function pickAssetForTransfer(rowNum){
+  document.getElementById('xfer-picker').style.display='none';
+  openTransferForRow(rowNum);
+}
+
 function openTransferModal(){
   document.getElementById('xfer-row').value='';
   document.getElementById('xfer-serial').value='';
@@ -2017,6 +2181,42 @@ function renderHistory(){
 // ══════════════════════════════════════════════════════
 // REPORT GENERATION
 // ══════════════════════════════════════════════════════
+function generatePdfReport(){
+  var dept=document.getElementById('rpt-dept').value||'';
+  var type=document.getElementById('rpt-type').value||'';
+  var btn=document.getElementById('pdf-gen-btn');
+  var status=document.getElementById('pdf-status');
+  btn.disabled=true; btn.textContent='⏳ Generating PDF…';
+  status.style.color='var(--text2)'; status.textContent='Building professional report, please wait…';
+  pywebview.api.generate_pdf(dept, type).then(function(r){
+    btn.disabled=false; btn.textContent='📄 Generate & Open PDF';
+    var res=JSON.parse(r);
+    if(res.ok){
+      status.style.color='var(--green)';
+      // In browser mode, open the PDF via the /reports/ route so it downloads/previews.
+      // In desktop (pywebview) mode, the system already opened it via os.startfile.
+      if(res.filename && window.__IS_BROWSER_MODE__){
+        var url='/reports/'+encodeURIComponent(res.filename);
+        status.innerHTML='✅ PDF ready — <a href="'+url+'" target="_blank" style="color:var(--teal);text-decoration:underline">Click here to open / download</a>';
+        window.open(url,'_blank');
+      } else {
+        status.textContent='✅ PDF report created and opened: '+res.path;
+      }
+      toast('PDF report generated successfully','ok');
+    } else {
+      status.style.color='var(--red)';
+      status.textContent='❌ Error: '+(res.error||'Unknown error');
+      toast('PDF generation failed','err');
+    }
+  }).catch(function(e){
+    btn.disabled=false; btn.textContent='📄 Generate & Open PDF';
+    status.style.color='var(--red)';
+    status.textContent='❌ Unexpected error: '+String(e);
+  });
+}
+
+function generateHtmlReport(){ generateReport(); }
+
 function buildReportFilters(){
   var depts=Object.keys(deptSet).sort();
   var types=Object.keys(typeSet).sort();
@@ -2265,7 +2465,10 @@ function inkAct(code, action){
 function inkSetPrinter(code){
   var big=parseInt(document.getElementById('ink-big-'+code).value)||0;
   var sml=parseInt(document.getElementById('ink-sml-'+code).value)||0;
-  pywebview.api.ink_action(code,'update',0,big,sml,'printer_count_update').then(function(){});
+  pywebview.api.ink_action(code,'set_printer',0,big,sml,'Printer count updated').then(function(r){
+    var res=JSON.parse(r);
+    if(res.ok){ reload(function(){renderInk();}); }
+  });
 }
 
 // ══════════════════════════════════════════════════════
@@ -2339,6 +2542,8 @@ function doLogout(){
   rows=[]; inkState={}; logItems=[]; histItems=[];
   setTimeout(function(){document.getElementById('pin-input').focus();},150);
   toast('Logged out successfully','info');
+  // Log logout asynchronously (best-effort — data already cleared)
+  try { pywebview.api.log_action('LOGOUT','Session ended — user logged out'); } catch(e){}
 }
 
 function changePin(){
@@ -2410,6 +2615,23 @@ document.querySelectorAll('.overlay').forEach(function(ov){
 // ══════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════
+// Polyfill roundRect for older browsers
+if(!CanvasRenderingContext2D.prototype.roundRect){
+  CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+    this.beginPath();
+    this.moveTo(x+r,y);
+    this.lineTo(x+w-r,y);
+    this.quadraticCurveTo(x+w,y,x+w,y+r);
+    this.lineTo(x+w,y+h-r);
+    this.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    this.lineTo(x+r,y+h);
+    this.quadraticCurveTo(x,y+h,x,y+h-r);
+    this.lineTo(x,y+r);
+    this.quadraticCurveTo(x,y,x+r,y);
+    this.closePath();
+  };
+}
+
 window.addEventListener('pywebviewready', function(){
   initLogin();
 });

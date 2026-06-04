@@ -38,6 +38,20 @@ if errorlevel 1 (
     )
 )
 
+echo Checking required package: reportlab...
+%PYTHON_CMD% -c "import reportlab" >nul 2>&1
+if errorlevel 1 (
+    echo reportlab not found. Installing it once...
+    %PYTHON_CMD% -m pip install reportlab --quiet --disable-pip-version-check
+    if errorlevel 1 (
+        echo ERROR: Could not install reportlab.
+        echo Check internet connection or install it manually:
+        echo %PYTHON_CMD% -m pip install reportlab
+        pause
+        exit /b 1
+    )
+)
+
 echo.
 echo Starting ICT Command Centre...
 echo.

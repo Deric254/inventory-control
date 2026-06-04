@@ -133,7 +133,9 @@ class ExcelEngine:
             ws.column_dimensions[get_column_letter(i)].width = widths.get(col_name, 16)
 
     def _write_log(self, wb, action, desc, by="ICT Manager"):
-        wb[SHEET_LOG].append([now(), action, desc, by])
+        # Sanitise strings to avoid charmap codec errors on Windows
+        def _safe(s): return str(s).encode("utf-8","replace").decode("utf-8") if s else ""
+        wb[SHEET_LOG].append([now(), action, _safe(desc), _safe(by)])
 
     def _backup(self):
         os.makedirs(BACKUP_DIR, exist_ok=True)
@@ -244,6 +246,13 @@ class ExcelEngine:
             wb.close()
             return {"inventory": inv, "ink": ink, "log": log, "history": hist}
 
+    def log_session(self, action, desc, by="ICT Manager"):
+        """Write a standalone audit log entry without touching other sheets."""
+        with self._lock:
+            wb = openpyxl.load_workbook(MASTER_XL)
+            self._write_log(wb, action, desc, by)
+            wb.save(MASTER_XL); wb.close()
+
     def _read_inv(self, wb):
         ws   = wb[SHEET_INV]
         rows = list(ws.values)
@@ -274,6 +283,7 @@ class ExcelEngine:
             if code in state:
                 if action == 'restock': state[code]['store'] += qty
                 elif action == 'use':   state[code]['store'] = max(0, state[code]['store'] - qty)
+                elif action == 'set_printer': pass  # only updates printer counts below
                 if big is not None: state[code]['bigIct']   = big
                 if sml is not None: state[code]['smallIct'] = sml
         return state
@@ -418,7 +428,10 @@ class ExcelEngine:
         with self._lock:
             wb = openpyxl.load_workbook(MASTER_XL)
             wb[SHEET_INK].append([now(), code, INK_NAMES.get(code,code), action, qty, big, sml, note])
-            self._write_log(wb, 'INK', f"Ink {action}: {qty}x {INK_NAMES.get(code,code)} ({code})")
+            if action == 'set_printer':
+                self._write_log(wb, 'INK', f"Printer counts updated — {INK_NAMES.get(code,code)} ({code}): Big ICT={big}, Small ICT={sml}")
+            else:
+                self._write_log(wb, 'INK', f"Ink {action}: {qty}x {INK_NAMES.get(code,code)} ({code})")
             wb.save(MASTER_XL); wb.close()
 
     def get_transfer_log(self):
@@ -542,10 +555,58 @@ class Api:
                 cur = self.engine.load_all()['ink'].get(code, {}).get('store', 0)
                 if cur < int(qty):
                     return json.dumps({"ok": False, "error": f"Only {cur} in store"})
-            self.engine.write_ink(code, action, int(qty), int(big), int(sml), note)
+            safe_int = lambda v, d=0: int(v) if v is not None else d
+            self.engine.write_ink(code, action, safe_int(qty), safe_int(big), safe_int(sml), note)
             return json.dumps({"ok": True})
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
+
+    def log_action(self, action, desc, by="ICT Manager"):
+        """Client-side initiated audit log entry."""
+        try:
+            self.engine.log_session(action, desc, by)
+            return json.dumps({"ok": True})
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
+
+    def generate_pdf(self, dept_filter='', type_filter=''):
+        """Generate professional PDF report and return its path."""
+        try:
+            import tempfile, os
+            out_dir = os.path.join(BASE_DIR, 'reports')
+            os.makedirs(out_dir, exist_ok=True)
+            ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            fname = f'ICT_Report_{ts}.pdf'
+            out_path = os.path.join(out_dir, fname)
+            # Look for logo.png next to main.py
+            logo_path = ''
+            for lname in ['logo.png','logo.jpg','logo.jpeg','LOGO.PNG','LOGO.JPG']:
+                candidate = os.path.join(BASE_DIR, lname)
+                if os.path.exists(candidate):
+                    logo_path = candidate
+                    break
+            result = generate_pdf_report(self.engine, out_path, dept_filter, type_filter, logo_path)
+            if result['ok']:
+                # Add filename so browser mode can build a /reports/<fname> download URL
+                result['filename'] = fname
+                # Also try to open with system viewer (works in desktop mode)
+                import subprocess, sys
+                try:
+                    if sys.platform == 'win32':    os.startfile(out_path)
+                    elif sys.platform == 'darwin': subprocess.Popen(['open', out_path])
+                    else:                          subprocess.Popen(['xdg-open', out_path])
+                except: pass
+            return json.dumps(result)
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
+
+    def get_logo_path(self):
+        """Return absolute file:/// URL to logo.png if it exists, else empty string."""
+        for lname in ['logo.png','logo.jpg','logo.jpeg','LOGO.PNG','LOGO.JPG']:
+            p = os.path.join(BASE_DIR, lname)
+            if os.path.exists(p):
+                uri = p.replace(os.sep, '/'); return 'file:///' + uri
+        return ''
 
     def get_master_path(self):
         return MASTER_XL
@@ -589,93 +650,152 @@ class Api:
 
     # ── PORTABLE APP BUILDER ──────────────────
     def build_installer(self):
-        """Generate a self-contained setup script for portable deployment."""
+        """Generate robust self-contained installer scripts for portable deployment."""
         try:
-            # Create setup script
             setup_bat = os.path.join(BASE_DIR, "INSTALL_ON_NEW_PC.bat")
             setup_sh  = os.path.join(BASE_DIR, "INSTALL_ON_NEW_PC.sh")
-            
-            bat_content = r"""@echo off
-title St. Anne ICT -- Portable Setup
-echo ================================================
-echo  St. Anne Mission Hospital -- ICT Command Centre
-echo  Portable Installer
-echo ================================================
-echo.
-echo Step 1: Checking Python...
-py -3.12 --version >nul 2>&1 && set PYTHON_CMD=py -3.12
-if "%PYTHON_CMD%"=="" py -3.11 --version >nul 2>&1 && set PYTHON_CMD=py -3.11
-if "%PYTHON_CMD%"=="" python --version >nul 2>&1 && set PYTHON_CMD=python
-if "%PYTHON_CMD%"=="" (
-    echo Python not found. Opening download page...
-    start https://www.python.org/downloads/
-    echo After install, re-run this script.
-    pause
-    exit /b 1
-)
-echo Python OK: %PYTHON_CMD%
-echo.
-echo Step 2: Installing required package...
-%PYTHON_CMD% -m pip install openpyxl --quiet
-echo.
-echo Step 3: Launching application...
-%PYTHON_CMD% main.py
-pause
-"""
-            sh_content = """#!/bin/bash
-echo "St. Anne Mission Hospital -- ICT Command Centre"
-echo "Portable Installer"
-echo ""
-echo "Checking Python..."
-if ! command -v python3 &> /dev/null; then
-    echo "Python3 not found. Please install Python 3.10+"
-    exit 1
-fi
-echo "Python OK"
-echo ""
-echo "Installing package..."
-pip3 install openpyxl --quiet
-echo ""
-echo "Launching..."
-python3 main.py
-"""
-            with open(setup_bat, 'w') as f: f.write(bat_content)
-            with open(setup_sh, 'w') as f:  f.write(sh_content)
+            start_bat = os.path.join(BASE_DIR, "start.bat")
+
+            bat_content = (
+                "@echo off\r\n"
+                "title St. Anne Mission Hospital - ICT Command Centre Setup\r\n"
+                "color 0A\r\n"
+                "echo.\r\n"
+                "echo  =====================================================\r\n"
+                "echo   St. Anne Mission Hospital - ICT Command Centre\r\n"
+                "echo   Portable Installer  ^|  Serve With Love\r\n"
+                "echo  =====================================================\r\n"
+                "echo.\r\n"
+                "\r\n"
+                ":: ── Step 1: Find Python ──\r\n"
+                "set PYTHON_CMD=\r\n"
+                "for %%C in (python py python3) do (\r\n"
+                "  if defined PYTHON_CMD goto :found\r\n"
+                "  %%C --version >nul 2>&1 && set PYTHON_CMD=%%C\r\n"
+                ")\r\n"
+                ":found\r\n"
+                "if not defined PYTHON_CMD (\r\n"
+                "  echo  [!] Python not found.\r\n"
+                "  echo  [>] Opening Python download page...\r\n"
+                "  start https://www.python.org/downloads/\r\n"
+                "  echo  [!] Install Python 3.10 or higher, then run this script again.\r\n"
+                "  echo  [!] TIP: Tick 'Add Python to PATH' during installation!\r\n"
+                "  pause\r\n"
+                "  exit /b 1\r\n"
+                ")\r\n"
+                "echo  [+] Python found: %PYTHON_CMD%\r\n"
+                "\r\n"
+                ":: ── Step 2: Upgrade pip silently ──\r\n"
+                "echo  [~] Updating pip...\r\n"
+                "%PYTHON_CMD% -m pip install --upgrade pip --quiet --no-warn-script-location 2>nul\r\n"
+                "\r\n"
+                ":: ── Step 3: Install required packages ──\r\n"
+                "echo  [~] Installing required packages...\r\n"
+                "%PYTHON_CMD% -m pip install openpyxl reportlab --quiet --no-warn-script-location\r\n"
+                "if errorlevel 1 (\r\n"
+                "  echo  [!] Package installation failed. Check your internet connection.\r\n"
+                "  pause\r\n"
+                "  exit /b 1\r\n"
+                ")\r\n"
+                "echo  [+] Packages installed successfully.\r\n"
+                "\r\n"
+                ":: ── Step 4: Launch app ──\r\n"
+                "echo  [>] Launching ICT Command Centre...\r\n"
+                "echo.\r\n"
+                "%PYTHON_CMD% main.py\r\n"
+                "pause\r\n"
+            )
+
+            start_bat_content = (
+                "@echo off\r\n"
+                "title St. Anne Mission Hospital - ICT Command Centre\r\n"
+                "cd /d \"%~dp0\"\r\n"
+                "for %%C in (python py python3) do (\r\n"
+                "  %%C --version >nul 2>&1 && set PYTHON_CMD=%%C && goto :run\r\n"
+                ")\r\n"
+                "echo Python not found. Please run INSTALL_ON_NEW_PC.bat first.\r\n"
+                "pause\r\n"
+                "exit /b 1\r\n"
+                ":run\r\n"
+                "start \"\" /B %PYTHON_CMD% main.py\r\n"
+                "exit\r\n"
+            )
+
+            sh_content = (
+                "#!/usr/bin/env bash\n"
+                "set -e\n"
+                "echo\n"
+                "echo ' ====================================================='\n"
+                "echo '  St. Anne Mission Hospital — ICT Command Centre'\n"
+                "echo '  Portable Installer  |  Serve With Love'\n"
+                "echo ' ====================================================='\n"
+                "echo\n"
+                "# Find Python\n"
+                "PYTHON_CMD=''\n"
+                "for cmd in python3 python python3.12 python3.11 python3.10; do\n"
+                "  if command -v $cmd &>/dev/null; then PYTHON_CMD=$cmd; break; fi\n"
+                "done\n"
+                "if [ -z \"$PYTHON_CMD\" ]; then\n"
+                "  echo '[!] Python 3 not found. Install Python 3.10+ and retry.'\n"
+                "  exit 1\n"
+                "fi\n"
+                "echo \"[+] Python found: $PYTHON_CMD\"\n"
+                "echo '[~] Installing packages...'\n"
+                "$PYTHON_CMD -m pip install openpyxl reportlab --quiet\n"
+                "echo '[+] Packages ready.'\n"
+                "echo '[>] Launching...'\n"
+                "$PYTHON_CMD main.py\n"
+            )
+
+            readme_content = (
+                "ST. ANNE MISSION HOSPITAL — ICT COMMAND CENTRE\n"
+                "HOW TO INSTALL ON A NEW DEVICE\n"
+                "===============================================\n\n"
+                "WINDOWS:\n"
+                "  1. Copy this entire folder to the new PC (USB stick is fine)\n"
+                "  2. Double-click  INSTALL_ON_NEW_PC.bat\n"
+                "     • It will auto-install Python packages and launch the app\n"
+                "  3. Next time, just double-click  start.bat\n\n"
+                "MAC / LINUX:\n"
+                "  1. Copy this folder to the new device\n"
+                "  2. Open Terminal and cd into this folder\n"
+                "  3. Run:  bash INSTALL_ON_NEW_PC.sh\n"
+                "  4. Next time:  python3 main.py\n\n"
+                "REQUIREMENTS:\n"
+                "  • Python 3.10 or higher  (https://www.python.org/downloads/)\n"
+                "  • Internet connection for first-time package install\n"
+                "  • Packages: openpyxl, reportlab (installed automatically)\n\n"
+                "WHAT TO COPY TO NEW PC:\n"
+                "  main.py          — the application\n"
+                "  ui.html          — the interface\n"
+                "  ICT_MASTER.xlsx  — your live database (all your data)\n"
+                "  auth.json        — your access PIN (hashed)\n"
+                "  config.json      — your custom departments/types (if exists)\n"
+                "  logo.png         — your hospital logo (if you have one)\n"
+                "  start.bat        — quick-start launcher for Windows\n\n"
+                "LOGO:\n"
+                "  Place a file named logo.png in this folder.\n"
+                "  It will appear on every PDF report page header.\n\n"
+                "SECURITY:\n"
+                "  • auth.json holds your PIN hash — do not share if access-restricted\n"
+                "  • To reset PIN: delete auth.json and restart the app\n\n"
+                "SUPPORT:\n"
+                "  ICT Department — St. Anne Mission Hospital\n"
+                "  Serve With Love\n"
+            )
+
+            with open(setup_bat, 'w', newline='', encoding='utf-8') as f: f.write(bat_content)
+            with open(start_bat, 'w', newline='', encoding='utf-8') as f: f.write(start_bat_content)
+            with open(setup_sh,  'w', newline='\n', encoding='utf-8') as f: f.write(sh_content)
+            with open(os.path.join(BASE_DIR, 'PORTABLE_README.txt'), 'w', encoding='utf-8') as f: f.write(readme_content)
+
             try:
-                import stat
-                os.chmod(setup_sh, os.stat(setup_sh).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+                import stat as _stat
+                os.chmod(setup_sh, os.stat(setup_sh).st_mode | _stat.S_IEXEC | _stat.S_IXGRP | _stat.S_IXOTH)
             except: pass
-            
-            # Create a README for portable use
-            readme = os.path.join(BASE_DIR, "PORTABLE_INSTALL.txt")
-            with open(readme, 'w') as f:
-                f.write("""HOW TO INSTALL ON A NEW DEVICE
-==============================
 
-WINDOWS:
-  1. Copy this entire folder to the new PC (USB stick works fine)
-  2. Double-click INSTALL_ON_NEW_PC.bat
-  3. It installs Python packages and launches automatically
-  4. Next time: double-click start.bat
-
-MAC / LINUX:
-  1. Copy this folder to the new device
-  2. Open Terminal, cd into this folder
-  3. Run: bash INSTALL_ON_NEW_PC.sh
-  4. Next time: python3 main.py
-
-WHAT TO COPY:
-  ✔ This entire folder including ICT_MASTER.xlsx
-  ✔ All files: main.py, ui.html, auth.json, config.json
-  ✔ Your data travels WITH the folder — no cloud, no server needed
-
-SECURITY NOTE:
-  - auth.json contains the access PIN (hashed, secure)
-  - Do NOT share auth.json if you want to keep access restricted
-  - To reset PIN: delete auth.json and restart the app
-
-""")
-            return json.dumps({"ok": True, "msg": f"Installer files created in: {BASE_DIR}"})
+            self.engine.log_session('INSTALLER', 'Portable installer scripts generated')
+            return json.dumps({"ok": True, "msg": f"Installer files created in:\n{BASE_DIR}\n\nFiles: INSTALL_ON_NEW_PC.bat / .sh  +  start.bat  +  PORTABLE_README.txt"})
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
 
@@ -697,14 +817,24 @@ BROWSER_BRIDGE = """
       };
     }
   });
-  window.addEventListener('DOMContentLoaded', function(){
+  // Mark that we are running in browser mode (not pywebview desktop)
+  window.__IS_BROWSER_MODE__ = true;
+  // Wait for DOMContentLoaded, then yield with setTimeout(0) so that
+  // all synchronous <script> blocks at the bottom of <body> have had a
+  // chance to register their 'pywebviewready' listeners before we fire.
+  function dispatchReady() {
     window.dispatchEvent(new Event('pywebviewready'));
-  });
+  }
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', function(){ setTimeout(dispatchReady, 0); });
+  } else {
+    setTimeout(dispatchReady, 0);
+  }
 })();
 </script>
 """
 
-def make_handler(api, ui_path):
+def make_handler(api, ui_path, browser_mode=False):
     class AppHandler(http.server.BaseHTTPRequestHandler):
         def log_message(self, fmt, *args):
             return
@@ -723,9 +853,30 @@ def make_handler(api, ui_path):
             if path in ("/", "/ui.html"):
                 with open(ui_path, "r", encoding="utf-8") as f:
                     html = f.read()
-                html = html.replace("</head>", BROWSER_BRIDGE + "\n</head>", 1)
+                # Only inject the fetch-proxy bridge in browser mode.
+                # In desktop (pywebview) mode pywebview injects its own native
+                # js_api bridge — injecting ours would overwrite it.
+                if browser_mode:
+                    html = html.replace("</head>", BROWSER_BRIDGE + "\n</head>", 1)
                 self._send(200, html, "text/html; charset=utf-8")
                 return
+            # Serve generated PDF reports for browser download
+            if path.startswith("/reports/"):
+                fname = urllib.parse.unquote(path[len("/reports/"):])
+                # Sanitise: no path traversal
+                if fname and "/" not in fname and "\\" not in fname:
+                    fpath = os.path.join(BASE_DIR, "reports", fname)
+                    if os.path.isfile(fpath):
+                        with open(fpath, "rb") as pf:
+                            data = pf.read()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/pdf")
+                        self.send_header("Content-Length", str(len(data)))
+                        self.send_header("Content-Disposition",
+                                         f'inline; filename="{fname}"')
+                        self.end_headers()
+                        self.wfile.write(data)
+                        return
             self._send(404, "Not found")
 
         def do_POST(self):
@@ -752,7 +903,8 @@ class LocalServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     allow_reuse_address = True
 
 def run_browser(api, ui_path):
-    server = LocalServer(("127.0.0.1", 0), make_handler(api, ui_path))
+    # browser_mode=True -> injects the fetch-proxy bridge into the page
+    server = LocalServer(("127.0.0.1", 0), make_handler(api, ui_path, browser_mode=True))
     url = f"http://127.0.0.1:{server.server_port}/"
     print("St. Anne ICT Command Centre is running locally.")
     print("Open this address if the browser does not appear:")
@@ -773,6 +925,8 @@ def run_desktop(api, ui_path):
         print(e)
         sys.exit(1)
 
+    # Desktop mode: pywebview loads ui.html directly via file:// and exposes
+    # js_api as window.pywebview.api natively. No HTTP server or bridge injection needed.
     window = webview.create_window(
         title            = "St. Anne Mission Hospital — ICT Command Centre v2",
         url              = ui_path,
@@ -786,6 +940,507 @@ def run_desktop(api, ui_path):
     )
     api.window = window
     webview.start(debug=False, private_mode=False)
+
+# ════════════════════════════════════════════
+# PROFESSIONAL PDF REPORT ENGINE
+# ════════════════════════════════════════════
+# ════════════════════════════════════════════
+# PROFESSIONAL PDF REPORT ENGINE  (compact)
+# ════════════════════════════════════════════
+def generate_pdf_report(engine: "ExcelEngine", output_path: str,
+                        dept_filter: str = "", type_filter: str = "",
+                        logo_path: str = "") -> dict:
+    """
+    Generate a concise 3-page professional ICT Asset Report.
+    Page 1 : Cover
+    Page 2 : Executive Summary + all key breakdowns on ONE page
+    Page 3 : Closing / sign-off
+    No personal names exposed. No redundant sections.
+    """
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.units import cm
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
+        from reportlab.platypus import (
+            Paragraph, Spacer, Table, TableStyle,
+            HRFlowable, KeepTogether, PageBreak
+        )
+        from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate
+        from reportlab.lib.colors import HexColor
+        import datetime, os, collections, re
+
+        # ── PALETTE — St. Anne Mission Hospital brand ──────
+        C_NAVY   = HexColor('#1a0a0d')   # near-black with warm red tint
+        C_BRAND  = HexColor('#7B1C2E')   # St. Anne maroon (primary)
+        C_BRAND2 = HexColor('#9e2438')   # lighter maroon (hover/accent)
+        C_GOLD   = HexColor('#C49A1A')   # mission gold (accent)
+        C_GOLD_LT= HexColor('#F0C040')   # highlight gold
+        C_BLUE   = HexColor('#7B1C2E')   # alias brand for headings
+        C_GREEN  = HexColor('#1a7a3f')
+        C_AMBER  = HexColor('#b45309')
+        C_GREY   = HexColor('#475569')
+        C_GREY_LT= HexColor('#f9f6f4')   # warm off-white
+        C_GREY_MD= HexColor('#e8e0dc')   # warm grey rule
+        C_WHITE  = colors.white
+        C_BLACK  = HexColor('#1a0e0b')   # warm near-black
+        C_STRIPE = HexColor('#fdf9f7')   # warm stripe
+        C_RED_H  = HexColor('#7B1C2E')   # repair table header = brand
+
+        W, H = A4
+        ML, MR, MT, MB = 2*cm, 2*cm, 2.6*cm, 2.6*cm
+        BW = W - ML - MR   # body width ≈ 171 pts
+
+        # ── DATA ─────────────────────────────────────────
+        data       = engine.load_all()
+        all_rows   = data['inventory']
+        hist_items = data['history']
+
+        def bucket(c):
+            c = (c or '').strip()
+            if c == 'Replaced': return 'replaced'
+            if c == 'Disposed': return 'disposed'
+            if c == 'New':      return 'new'
+            cl = c.lower()
+            if 'repair' in cl:  return 'repair'
+            return 'good'   # Good / Fair / blank / custom → good
+
+        def filt(rows):
+            return [r for r in rows
+                    if (not dept_filter or r.get('Department/Location','') == dept_filter)
+                    and (not type_filter or r.get('Equipment Type','') == type_filter)]
+
+        filtered      = filt(all_rows)
+        active        = [r for r in filtered if bucket(r.get('Condition/Status')) not in ('replaced','disposed')]
+        replaced_rows = [r for r in filtered if bucket(r.get('Condition/Status')) == 'replaced']
+        disposed_rows = [r for r in filtered if bucket(r.get('Condition/Status')) == 'disposed']
+
+        total    = len(active)
+        n_new    = sum(1 for r in active if bucket(r.get('Condition/Status')) == 'new')
+        n_good   = sum(1 for r in active if bucket(r.get('Condition/Status')) == 'good')
+        n_repair = sum(1 for r in active if bucket(r.get('Condition/Status')) == 'repair')
+        n_ok     = n_new + n_good
+        pct_ok   = round(n_ok / total * 100) if total else 0
+        pct_rep  = round(n_repair / total * 100) if total else 0
+
+        type_counts = collections.Counter(
+            r.get('Equipment Type','Unknown') or 'Unknown' for r in active)
+        dept_counts = collections.Counter(
+            r.get('Department/Location','Unknown') or 'Unknown' for r in active)
+
+        today  = datetime.date.today()
+        cutoff = today - datetime.timedelta(days=90)
+
+        def pdate(s):
+            try: return datetime.datetime.strptime(str(s)[:10],'%Y-%m-%d').date()
+            except: return None
+
+        recent = [h for h in hist_items
+                  if pdate(h.get('date','')) and pdate(h.get('date','')) >= cutoff]
+
+        total_cost = 0.0
+        for h in recent:
+            m = re.search(r'\[Cost: KES ([0-9,.]+)\]', h.get('note',''))
+            if m:
+                try: total_cost += float(m.group(1).replace(',',''))
+                except: pass
+
+        now_str  = datetime.datetime.now().strftime('%d %B %Y  %H:%M')
+        date_str = datetime.datetime.now().strftime('%d %B %Y')
+        rpt_title = 'ICT Asset Management Report'
+        if dept_filter: rpt_title += f' — {dept_filter}'
+        elif type_filter: rpt_title += f' — {type_filter}'
+
+        top_type = type_counts.most_common(1)[0][0] if type_counts else '—'
+        top_dept = dept_counts.most_common(1)[0][0] if dept_counts else '—'
+
+        # ── STYLES ───────────────────────────────────────
+        def S(name, **kw): return ParagraphStyle(name, **kw)
+
+        s_cov1  = S('Cov1', fontSize=26, fontName='Helvetica-Bold', textColor=C_BRAND,
+                    alignment=TA_CENTER, leading=32, spaceAfter=2)
+        s_cov2  = S('Cov2', fontSize=14, fontName='Helvetica', textColor=C_GREY,
+                    alignment=TA_CENTER, leading=18, spaceAfter=4)
+        s_cov3  = S('Cov3', fontSize=18, fontName='Helvetica-Bold', textColor=C_GOLD,
+                    alignment=TA_CENTER, leading=24, spaceAfter=4)
+        s_cov4  = S('Cov4', fontSize=10, fontName='Helvetica-Oblique', textColor=C_GREY,
+                    alignment=TA_CENTER, leading=14)
+        s_cdate = S('CDate', fontSize=8.5, fontName='Helvetica', textColor=C_GREY,
+                    alignment=TA_CENTER, leading=12)
+        s_filt  = S('Filt', fontSize=8.5, fontName='Helvetica', textColor=C_GREY,
+                    alignment=TA_CENTER, leading=12)
+        s_h2    = S('H2', fontSize=11, fontName='Helvetica-Bold', textColor=C_BRAND,
+                    spaceAfter=3, spaceBefore=8, leading=15)
+        s_exec  = S('Exec', fontSize=9.5, fontName='Helvetica', textColor=C_BLACK,
+                    leading=15, alignment=TA_JUSTIFY, spaceAfter=5)
+        s_th    = S('TH', fontSize=7.5, fontName='Helvetica-Bold', textColor=C_WHITE,
+                    leading=10, alignment=TA_CENTER)
+        s_td    = S('TD', fontSize=8, fontName='Helvetica', textColor=C_BLACK,
+                    leading=10, alignment=TA_LEFT)
+        s_tdc   = S('TDC', fontSize=8, fontName='Helvetica', textColor=C_BLACK,
+                    leading=10, alignment=TA_CENTER)
+        s_end   = S('End', fontSize=13, fontName='Helvetica-Bold', textColor=C_BRAND,
+                    alignment=TA_CENTER, spaceAfter=4)
+        s_endsub= S('EndSub', fontSize=9, fontName='Helvetica', textColor=C_GREY,
+                    alignment=TA_CENTER, spaceAfter=3)
+        s_endsl = S('EndSl', fontSize=9, fontName='Helvetica-Oblique', textColor=C_GOLD,
+                    alignment=TA_CENTER)
+
+        # ── PAGE HEADER / FOOTER ─────────────────────────
+        def make_doc(path):
+            class MyDoc(BaseDocTemplate):
+                def __init__(self, fn, **kw):
+                    super().__init__(fn, **kw)
+                    frame = Frame(ML, MB, BW, H - MT - MB,
+                                  leftPadding=0, rightPadding=0,
+                                  topPadding=0, bottomPadding=0, id='main')
+                    self.addPageTemplates([
+                        PageTemplate(id='main', frames=[frame], onPage=self._hf)])
+
+                def _hf(self, cv, doc):
+                    cv.saveState()
+                    # header band
+                    cv.setFillColor(C_BRAND)
+                    cv.rect(0, H - 1.5*cm, W, 1.5*cm, fill=1, stroke=0)
+                    # accent line
+                    cv.setFillColor(C_GOLD)
+                    cv.rect(0, H - 1.52*cm, W, 0.05*cm, fill=1, stroke=0)
+
+                    lx = ML
+                    if logo_path and os.path.exists(logo_path):
+                        try:
+                            from reportlab.lib.utils import ImageReader
+                            img = ImageReader(logo_path)
+                            iw, ih = img.getSize()
+                            lh = 1.05*cm
+                            lw = lh * iw / ih
+                            cv.drawImage(logo_path, lx, H - 1.28*cm,
+                                         width=lw, height=lh,
+                                         preserveAspectRatio=True, mask='auto')
+                            lx += lw + 7
+                        except: pass
+
+                    cv.setFillColor(C_WHITE)
+                    cv.setFont('Helvetica-Bold', 8.5)
+                    cv.drawString(lx, H - 0.85*cm, 'St. Anne Mission Hospital')
+                    cv.setFont('Helvetica', 7.5)
+                    cv.setFillColor(HexColor('#94a3b8'))
+                    cv.drawString(lx, H - 1.27*cm, 'ICT Command Centre  ·  Serve With Love')
+                    cv.setFillColor(C_WHITE)
+                    cv.setFont('Helvetica-Bold', 7.5)
+                    cv.drawRightString(W - MR, H - 0.85*cm, rpt_title)
+                    cv.setFont('Helvetica', 7)
+                    cv.setFillColor(HexColor('#94a3b8'))
+                    cv.drawRightString(W - MR, H - 1.27*cm, date_str)
+
+                    # footer
+                    cv.setFillColor(C_GREY_MD)
+                    cv.rect(ML, MB - 0.65*cm, BW, 0.45*cm, fill=1, stroke=0)
+                    cv.setFillColor(C_GREY)
+                    cv.setFont('Helvetica', 7)
+                    cv.drawString(ML + 4, MB - 0.44*cm,
+                        f'St. Anne Mission Hospital  ·  ICT Asset Report  ·  {now_str}')
+                    cv.drawRightString(W - MR - 4, MB - 0.44*cm,
+                        f'Page {doc.page}  ·  CONFIDENTIAL')
+                    cv.restoreState()
+
+            return MyDoc(path, pagesize=A4,
+                         leftMargin=ML, rightMargin=MR,
+                         topMargin=MT, bottomMargin=MB,
+                         title=rpt_title,
+                         author='St. Anne Mission Hospital ICT',
+                         subject='ICT Asset Management Report')
+
+        # ── HELPERS ──────────────────────────────────────
+        def sp(h=5):  return Spacer(1, h)
+        def hr(c=C_GREY_MD): return HRFlowable(width='100%', thickness=0.8,
+                                                color=c, spaceAfter=4, spaceBefore=2)
+
+        def sh(text, icon=''):
+            """Section heading."""
+            label = f'{icon}  {text}' if icon else text
+            return [
+                sp(6),
+                Paragraph(label, s_h2),
+                HRFlowable(width='100%', thickness=1.2, color=C_GOLD,
+                           spaceAfter=5, spaceBefore=0),
+            ]
+
+        def cover_kpi_block(items):
+            """Horizontal KPI strip — items: [(label, value, hex_color), ...]"""
+            n = len(items)
+            cw = BW / n
+            row_vals = [Paragraph(
+                f'<font size="22"><b><font color="{c}">{v}</font></b></font>',
+                ParagraphStyle('KV', alignment=TA_CENTER, leading=26)) for _, v, c in items]
+            row_lbls = [Paragraph(
+                f'<font color="#475569"><font size="7.5">{l}</font></font>',
+                ParagraphStyle('KL', alignment=TA_CENTER, leading=10)) for l, _, _ in items]
+            t = Table([row_vals, row_lbls], colWidths=[cw]*n, rowHeights=[30, 14])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), C_GREY_LT),
+                ('BOX',        (0,0), (-1,-1), 0.5, C_GREY_MD),
+                ('INNERGRID',  (0,0), (-1,-1), 0.5, C_GREY_MD),
+                ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
+                ('TOPPADDING', (0,0), (-1,0), 6),
+                ('BOTTOMPADDING', (0,1), (-1,1), 5),
+            ]))
+            return t
+
+        def dtable(headers, rows_data, col_widths, hbg=C_BRAND, fontsize=7.8):
+            """Clean data table. Alternating row shading, tight padding."""
+            # Rebuild styles at requested font size
+            _th = ParagraphStyle('th2', fontSize=fontsize-0.3, fontName='Helvetica-Bold',
+                                 textColor=C_WHITE, leading=fontsize+1.5, alignment=TA_CENTER)
+            _td = ParagraphStyle('td2', fontSize=fontsize, fontName='Helvetica',
+                                 textColor=C_BLACK, leading=fontsize+1.5, alignment=TA_LEFT)
+            _tdc= ParagraphStyle('tdc2', fontSize=fontsize, fontName='Helvetica',
+                                 textColor=C_BLACK, leading=fontsize+1.5, alignment=TA_CENTER)
+
+            tdata = [[Paragraph(h, _th) for h in headers]]
+            for ri, row in enumerate(rows_data):
+                tdata.append([Paragraph(str(c or '—'),
+                                        _tdc if i == 0 else _td)
+                               for i, c in enumerate(row)])
+
+            t = Table(tdata, colWidths=col_widths, repeatRows=1)
+            style = [
+                ('BACKGROUND',    (0, 0), (-1, 0), hbg),
+                ('TEXTCOLOR',     (0, 0), (-1, 0), C_WHITE),
+                ('TOPPADDING',    (0, 0), (-1,-1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1,-1), 3),
+                ('LEFTPADDING',   (0, 0), (-1,-1), 5),
+                ('RIGHTPADDING',  (0, 0), (-1,-1), 5),
+                ('GRID',          (0, 0), (-1,-1), 0.35, C_GREY_MD),
+                ('VALIGN',        (0, 0), (-1,-1), 'MIDDLE'),
+                ('ROWBACKGROUNDS',(0, 1), (-1,-1), [C_WHITE, C_STRIPE]),
+                # Bold last row if it's a TOTAL row
+            ]
+            # Bold the last row when it starts with "TOTAL"
+            if rows_data and str(rows_data[-1][0]).upper().startswith('TOTAL'):
+                style += [
+                    ('FONTNAME',   (0,-1), (-1,-1), 'Helvetica-Bold'),
+                    ('BACKGROUND', (0,-1), (-1,-1), C_GREY_LT),
+                    ('LINEABOVE',  (0,-1), (-1,-1), 0.8, C_GREY),
+                ]
+            t.setStyle(TableStyle(style))
+            return t
+
+        # ════════════════════════════════════════════════
+        # PAGE 1: COVER  (self-contained, no overflow)
+        # ════════════════════════════════════════════════
+        story = []
+        story.append(sp(55))
+        story.append(Paragraph(
+            '<font color="#C49A1A">St. Anne</font> Mission Hospital', s_cov1))
+        story.append(Paragraph('ICT Department', s_cov2))
+        story.append(sp(4))
+        story.append(HRFlowable(width=7*cm, thickness=2, color=C_GOLD,
+                                hAlign='CENTER', spaceBefore=2, spaceAfter=6))
+        story.append(sp(4))
+        story.append(Paragraph('ICT Asset Management Report', s_cov3))
+        story.append(sp(3))
+        story.append(Paragraph('<i>Serve With Love</i>', s_cov4))
+        story.append(sp(28))
+        story.append(cover_kpi_block([
+            ('Total Active Assets', str(total),    '#7B1C2E'),
+            ('Good Condition',      f'{pct_ok}%',  '#1a7a3f'),
+            ('Need Attention',      f'{pct_rep}%', '#b45309'),
+            ('Departments',         str(len(dept_counts)), '#C49A1A'),
+        ]))
+        story.append(sp(18))
+        if dept_filter or type_filter:
+            parts = []
+            if dept_filter: parts.append(f'Department: <b>{dept_filter}</b>')
+            if type_filter: parts.append(f'Type: <b>{type_filter}</b>')
+            story.append(Paragraph('Scope: ' + '  |  '.join(parts), s_filt))
+            story.append(sp(4))
+        story.append(Paragraph(f'Generated  {now_str}', s_cdate))
+        story.append(PageBreak())
+
+        # ════════════════════════════════════════════════
+        # PAGE 2: ALL CONTENT  (designed to fit ~1 page)
+        # ════════════════════════════════════════════════
+
+        # ── Executive Summary ────────────────────────────
+        story += sh('Executive Summary', '📋')
+
+        repair_clause = (
+            f'Of concern, <b>{n_repair}</b> asset{"s" if n_repair!=1 else ""} '
+            f'({pct_rep}%) currently require maintenance or repair.'
+        ) if n_repair else \
+            'No assets are currently flagged as requiring repair.'
+
+        lifecycle_clause = ''
+        if len(replaced_rows) > 0:
+            lifecycle_clause = (
+                f' A further <b>{len(replaced_rows)}</b> unit'
+                f'{"s" if len(replaced_rows)!=1 else ""} have been retired and '
+                f'replaced under lifecycle management.'
+            )
+
+        cost_clause = (
+            f' Maintenance costs recorded in the past 90 days total '
+            f'<b>KES {total_cost:,.0f}</b>.'
+        ) if total_cost > 0 else ''
+
+        story.append(Paragraph(
+            f'The ICT Department of <b>St. Anne Mission Hospital</b> manages '
+            f'<b>{total}</b> active ICT asset{"s" if total!=1 else ""} across '
+            f'<b>{len(dept_counts)}</b> department{"s" if len(dept_counts)!=1 else ""}. '
+            f'Of these, <b>{n_ok}</b> ({pct_ok}%) are in good or new working condition. '
+            f'{repair_clause}'
+            f'{lifecycle_clause}'
+            f'{cost_clause} '
+            f'The leading asset category is <b>{top_type}</b>; the department with the '
+            f'highest asset count is <b>{top_dept}</b>.',
+            s_exec))
+        story.append(sp(6))
+
+        # ── Equipment by Type ────────────────────────────
+        story += sh('Assets by Equipment Type', '🖥️')
+
+        type_rows = []
+        for etype, cnt in type_counts.most_common():
+            tr = [r for r in active if r.get('Equipment Type','') == etype]
+            ok  = sum(1 for r in tr if bucket(r.get('Condition/Status')) in ('new','good'))
+            rep = sum(1 for r in tr if bucket(r.get('Condition/Status')) == 'repair')
+            pct = f'{round(cnt/total*100)}%' if total else '0%'
+            # visual bar: 12 chars, proportional
+            ok_b  = round(ok  / cnt * 12) if cnt else 0
+            rep_b = round(rep / cnt * 12) if cnt else 0
+            oth_b = 12 - ok_b - rep_b
+            bar   = ('█' * ok_b) + ('░' * oth_b) + ('▓' * rep_b)
+            type_rows.append([etype, cnt, pct, ok, rep, bar])
+
+        # Totals row
+        type_rows.append([
+            'TOTAL',
+            total,
+            '100%',
+            n_ok,
+            n_repair,
+            '',
+        ])
+
+        cw_type = [BW*0.30, BW*0.08, BW*0.08, BW*0.09, BW*0.09, BW*0.36]
+        story.append(dtable(
+            ['Equipment Type', 'Count', '% Fleet', 'Good/New', 'Repair', 'Condition  (█Good  ▓Repair)'],
+            type_rows, cw_type))
+        story.append(sp(6))
+
+        # ── Department Distribution ───────────────────────
+        story += sh('Assets by Department', '🏢')
+
+        dept_rows = []
+        for dept, cnt in dept_counts.most_common():
+            dr  = [r for r in active if r.get('Department/Location','') == dept]
+            rep = sum(1 for r in dr if bucket(r.get('Condition/Status')) == 'repair')
+            ok  = cnt - rep
+            pct = f'{round(cnt/total*100)}%' if total else '0%'
+            dept_rows.append([dept, cnt, pct, ok, rep])
+
+        dept_rows.append(['TOTAL', total, '100%', n_ok, n_repair])
+
+        cw_dept = [BW*0.40, BW*0.10, BW*0.10, BW*0.20, BW*0.20]
+        story.append(dtable(
+            ['Department / Location', 'Assets', '%', 'Good/New', 'Repair'],
+            dept_rows, cw_dept))
+        story.append(sp(6))
+
+        # ── Assets Needing Repair ────────────────────────
+        repair_assets = [r for r in active if bucket(r.get('Condition/Status')) == 'repair']
+        if repair_assets:
+            story += sh('Assets Requiring Attention', '⚠️')
+            r_rows = []
+            for r in repair_assets:
+                r_rows.append([
+                    r.get('Equipment Type',''),
+                    r.get('Brand/Model',''),
+                    r.get('Serial No.',''),
+                    r.get('Department/Location',''),
+                    r.get('Condition/Status',''),
+                ])
+            cw_rep = [BW*0.20, BW*0.22, BW*0.18, BW*0.24, BW*0.16]
+            story.append(dtable(
+                ['Type', 'Brand / Model', 'Serial No.', 'Department', 'Status'],
+                r_rows, cw_rep, hbg=C_RED_H))
+            story.append(sp(6))
+
+        # ── Recent Activity (summary only) ───────────────
+        if recent:
+            story += sh('Recent Activity — Last 90 Days', '🕐')
+
+            # Count events by type — no names, no detail rows
+            ev_counts = collections.Counter(h.get('event','other') for h in recent)
+            ev_rows = [[ev.title(), str(cnt)] for ev, cnt in ev_counts.most_common()]
+            ev_rows.append(['TOTAL', str(len(recent))])
+
+            # Side-by-side: event summary left, cost summary right
+            ev_tbl = dtable(['Event Type', 'Count'], ev_rows,
+                            [BW*0.30, BW*0.12], fontsize=7.8)
+
+            # Recent high-activity months
+            month_counts = collections.Counter()
+            for h in recent:
+                d = pdate(h.get('date',''))
+                if d: month_counts[d.strftime('%b %Y')] += 1
+
+            month_rows = [[m, str(c)] for m, c in month_counts.most_common(4)]
+
+            # Cost note
+            activity_note = (
+                f'{len(recent)} maintenance and operational event'
+                f'{"s" if len(recent)!=1 else ""} recorded in the past 90 days'
+                f'{f", with total logged costs of KES {total_cost:,.0f}" if total_cost else ""}.'
+            )
+            story.append(Paragraph(activity_note, s_exec))
+            story.append(dtable(['Event Type', 'Count'], ev_rows,
+                                 [BW*0.55, BW*0.20], fontsize=7.8))
+            story.append(sp(6))
+
+        # ── Lifecycle (compact, if any) ───────────────────
+        if replaced_rows or disposed_rows:
+            story += sh('Lifecycle Summary', '🔁')
+            rep_types = collections.Counter(
+                r.get('Equipment Type','Unknown') or 'Unknown' for r in replaced_rows)
+            dis_types = collections.Counter(
+                r.get('Equipment Type','Unknown') or 'Unknown' for r in disposed_rows)
+            all_et = sorted(set(list(rep_types) + list(dis_types)))
+            lc_rows = [[et, str(rep_types.get(et,0)), str(dis_types.get(et,0))]
+                       for et in all_et]
+            lc_rows.append(['TOTAL', str(len(replaced_rows)), str(len(disposed_rows))])
+            cw_lc = [BW*0.55, BW*0.225, BW*0.225]
+            story.append(dtable(['Equipment Type', 'Replaced', 'Disposed'],
+                                lc_rows, cw_lc))
+
+        # ════════════════════════════════════════════════
+        # CLOSING PAGE
+        # ════════════════════════════════════════════════
+        story.append(PageBreak())
+        story.append(sp(90))
+        story.append(Paragraph('End of Report', s_end))
+        story.append(HRFlowable(width=5*cm, thickness=1.5, color=C_GOLD,
+                                hAlign='CENTER', spaceAfter=10))
+        story.append(Paragraph(
+            'St. Anne Mission Hospital  ·  ICT Department', s_endsub))
+        story.append(Paragraph('<i>Serve With Love</i>', s_endsl))
+        story.append(sp(10))
+        story.append(Paragraph(
+            f'<font color="#94a3b8">Generated {now_str}  ·  CONFIDENTIAL</font>',
+            ParagraphStyle('EndDate', fontSize=7.5, fontName='Helvetica',
+                           alignment=TA_CENTER, textColor=C_GREY)))
+
+        # ── BUILD ─────────────────────────────────────────
+        doc = make_doc(output_path)
+        doc.build(story)
+        engine.log_session('REPORT', f'PDF report generated: {os.path.basename(output_path)}')
+        return {"ok": True, "path": output_path}
+
+    except Exception as e:
+        import traceback
+        return {"ok": False, "error": str(e), "trace": traceback.format_exc()}
 
 def main():
     engine = ExcelEngine()
