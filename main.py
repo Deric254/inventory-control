@@ -14,7 +14,38 @@ import http.server, socketserver, webbrowser, urllib.parse
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
-BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
+# ── Portable EXE path resolution ─────────────────────────────────────────────
+# When frozen by PyInstaller, sys._MEIPASS is the temp folder where bundled
+# read-only assets (ui.html, seed Excel) live.
+# Mutable data (ICT_MASTER.xlsx, auth.json, config.json, backups, reports)
+# live next to the .exe so they persist across runs.
+def _meipass():
+    """Return the PyInstaller bundle directory (read-only assets)."""
+    return getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+
+def _datadir():
+    """Return the directory for mutable data files.
+    When frozen: same folder as the .exe.
+    When running as a script: same folder as main.py.
+    """
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+BUNDLE_DIR = _meipass()   # read-only: ui.html, seed ICT_MASTER.xlsx
+BASE_DIR   = _datadir()   # read-write: live data files
+
+# On first run from a fresh exe, seed the data files from the bundle
+def _seed_file(name):
+    dst = os.path.join(BASE_DIR, name)
+    if not os.path.exists(dst):
+        src = os.path.join(BUNDLE_DIR, name)
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+
+for _f in ("ICT_MASTER.xlsx", "auth.json"):
+    _seed_file(_f)
+
 MASTER_XL  = os.path.join(BASE_DIR, "ICT_MASTER.xlsx")
 BACKUP_DIR = os.path.join(BASE_DIR, "backups")
 AUTH_FILE  = os.path.join(BASE_DIR, "auth.json")
@@ -1447,9 +1478,9 @@ def main():
     cfg    = ConfigEngine()
     api    = Api(engine, cfg)
 
-    ui_path = os.path.join(BASE_DIR, 'ui.html')
+    ui_path = os.path.join(BUNDLE_DIR, 'ui.html')
     if not os.path.exists(ui_path):
-        print("ERROR: ui.html not found in", BASE_DIR)
+        print("ERROR: ui.html not found in", BUNDLE_DIR)
         sys.exit(1)
 
     if "--desktop" in sys.argv:
