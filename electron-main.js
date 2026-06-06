@@ -38,7 +38,7 @@ const DATA_DIR = getDataDir();
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 // Seed data files on first run
-['ICT_MASTER.xlsx', 'auth.json'].forEach(name => {
+['ICT_MASTER.xlsx', 'auth.json', 'logo.png'].forEach(name => {
   const dst = path.join(DATA_DIR, name);
   const src = path.join(ASSETS_DIR, name);
   if (!fs.existsSync(dst) && fs.existsSync(src)) fs.copyFileSync(src, dst);

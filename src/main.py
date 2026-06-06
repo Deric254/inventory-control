@@ -47,7 +47,7 @@ def _seed_file(name):
         if os.path.exists(src):
             shutil.copy2(src, dst)
 
-for _f in ("ICT_MASTER.xlsx", "auth.json"):
+for _f in ("ICT_MASTER.xlsx", "auth.json", "logo.png"):
     _seed_file(_f)
 
 MASTER_XL  = os.path.join(BASE_DIR, "ICT_MASTER.xlsx")
