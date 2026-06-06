@@ -779,7 +779,7 @@ code, .mono{font-family:'DM Mono',monospace}
         <option value="upgraded">Upgrades</option>
       </select>
     </div>
-    <div class="card"><div class="card-hd"><span class="card-title">All Activity</span></div>
+    <div class="card"><div class="card-hd"><span class="card-title">All Activity</span><button class="btn sm ghost" onclick="exportActivityCSV()" title="Download activity log as CSV">⬇️ Export CSV</button></div>
       <div class="card-bd" id="hist-list" style="max-height:580px;overflow-y:auto"></div>
     </div>
   </div>
@@ -802,7 +802,7 @@ code, .mono{font-family:'DM Mono',monospace}
             <select class="fsel" id="rpt-type" style="width:100%"><option value="">All Types</option></select>
           </div>
           <button class="btn pri" onclick="generatePdfReport()" id="pdf-gen-btn" style="height:34px;align-self:flex-end">
-            📄 Generate &amp; Open PDF
+            📥 Generate & Download PDF
           </button>
         </div>
         <div id="pdf-status" style="font-size:12px;min-height:1.4em"></div>
@@ -811,7 +811,7 @@ code, .mono{font-family:'DM Mono',monospace}
 
     <div class="card">
       <div class="card-hd"><span class="card-title">🔍 Quick Preview (HTML)</span>
-        <button class="btn ghost sm" onclick="generateHtmlReport()">Generate Preview</button>
+        <button class="btn ghost sm" onclick="generateHtmlReport()" title="Generate and download HTML report">⬇️ Generate &amp; Download</button>
       </div>
       <div class="card-bd" id="report-output" style="max-height:600px;overflow-y:auto"></div>
     </div>
@@ -1665,6 +1665,9 @@ function renderTable(){
   var fd=document.getElementById('fd').value;
   var fc=document.getElementById('fc').value;
   var filtered=rows.filter(function(r){
+    // Disposed items are hidden from the active inventory view;
+    // they remain in history records for full accountability.
+    if(r['Condition/Status']==='Disposed') return false;
     if(ft&&r['Equipment Type']!==ft)return false;
     if(fd&&r['Department/Location']!==fd)return false;
     if(fc&&r['Condition/Status']!==fc)return false;
@@ -2174,6 +2177,45 @@ function renderHistory(){
   document.getElementById('hist-list').innerHTML=html||'<div class="empty"><div class="ei">📋</div>No activity matches</div>';
 }
 
+function exportActivityCSV(){
+  var q=(document.getElementById('hist-search').value||'').toLowerCase();
+  var ft=document.getElementById('hist-filter').value;
+  var items=histItems.filter(function(h){
+    if(ft&&h.event!==ft)return false;
+    if(q){var s=(h.date+h.asset+h.serial+h.from+h.to+h.event+h.note).toLowerCase();return s.indexOf(q)>-1;}
+    return true;
+  });
+  var headers=['Date','Event','Asset','Serial No.','From','To / Dept','Notes','Cost (KES)','Logged By'];
+  var csvRows=[headers.map(function(h){return '"'+h+'"';}).join(',')];
+  items.forEach(function(h){
+    var costMatch=h.note.match(/\[Cost: KES ([^\]]+)\]/);
+    var byMatch=h.note.match(/\[By: ([^\]]+)\]/);
+    var cleanNote=h.note.replace(/\[Cost:[^\]]+\]/g,'').replace(/\[By:[^\]]+\]/g,'').trim();
+    var row=[
+      h.date||'',
+      h.event||'',
+      h.asset||'',
+      h.serial||'',
+      h.from||'',
+      h.to||'',
+      cleanNote,
+      costMatch?costMatch[1]:'',
+      byMatch?byMatch[1]:''
+    ].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';});
+    csvRows.push(row.join(','));
+  });
+  var csv=csvRows.join('\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  var now=new Date();
+  var ds=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+  a.href=url; a.download='activity_log_'+ds+'.csv'; a.style.display='none';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},500);
+  toast('Activity log exported ('+items.length+' records)','ok');
+}
+
 // ══════════════════════════════════════════════════════
 // REPORT GENERATION
 // ══════════════════════════════════════════════════════
@@ -2183,46 +2225,67 @@ function generatePdfReport(){
   var btn=document.getElementById('pdf-gen-btn');
   var status=document.getElementById('pdf-status');
   btn.disabled=true; btn.textContent='⏳ Generating PDF…';
-  status.style.color='var(--text2)'; status.textContent='Building professional report, please wait…';
+  status.style.color='var(--text2)'; status.textContent='Building report, please wait…';
   pywebview.api.generate_pdf(dept, type).then(function(r){
-    btn.disabled=false; btn.textContent='📄 Generate & Open PDF';
+    btn.disabled=false; btn.textContent='📥 Generate & Download PDF';
     var res=JSON.parse(r);
     if(res.ok){
-      status.style.color='var(--green)';
-      // In browser mode, open the PDF via the /reports/ route so it downloads/previews.
-      // In desktop (pywebview) mode, the system already opened it via os.startfile.
-      if(res.filename && window.__IS_BROWSER_MODE__){
-        var url='/reports/'+encodeURIComponent(res.filename);
-        status.innerHTML='✅ PDF ready — <a href="'+url+'" target="_blank" style="color:var(--teal);text-decoration:underline">Click here to open / download</a>';
-        window.open(url,'_blank');
-      } else if(res.filename && window.__IS_ELECTRON_MODE__){
-        // Electron: open via shell.openPath through the IPC bridge
-        var url='http://127.0.0.1'+window.location.port?(':'+window.location.port):''+'/reports/'+encodeURIComponent(res.filename);
-        window.electronAPI.openFile(res.path).then(function(){
-          status.textContent='✅ PDF report created and opened: '+res.filename;
-        }).catch(function(){
-          // Fallback: open via the local HTTP server
-          var reportUrl=window.location.origin+'/reports/'+encodeURIComponent(res.filename);
-          window.open(reportUrl,'_blank');
-          status.innerHTML='✅ PDF ready — <a href="'+reportUrl+'" target="_blank" style="color:var(--teal);text-decoration:underline">Click here to open / download</a>';
-        });
+      // Use base64 blob download — works in pywebview, Electron, and browser modes
+      if(res.b64){
+        try{
+          var bin=atob(res.b64);
+          var bytes=new Uint8Array(bin.length);
+          for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+          var blob=new Blob([bytes],{type:'application/pdf'});
+          var url=URL.createObjectURL(blob);
+          var a=document.createElement('a');
+          a.href=url; a.download=res.filename||'ICT_Report.pdf'; a.style.display='none';
+          document.body.appendChild(a); a.click();
+          setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},800);
+          status.style.color='var(--green)';
+          status.textContent='✅ PDF downloaded: '+res.filename;
+          toast('PDF report downloaded','ok');
+        }catch(ex){
+          status.style.color='var(--amber)';
+          status.textContent='⚠️ Download failed — report saved to reports/ folder';
+          toast('PDF saved to reports folder','info');
+        }
       } else {
-        status.textContent='✅ PDF report created and opened: '+res.path;
+        status.style.color='var(--green)';
+        status.textContent='✅ PDF generated: '+(res.filename||res.path||'');
+        toast('PDF report generated','ok');
       }
-      toast('PDF report generated successfully','ok');
     } else {
       status.style.color='var(--red)';
       status.textContent='❌ Error: '+(res.error||'Unknown error');
       toast('PDF generation failed','err');
     }
   }).catch(function(e){
-    btn.disabled=false; btn.textContent='📄 Generate & Open PDF';
+    btn.disabled=false; btn.textContent='📥 Generate & Download PDF';
     status.style.color='var(--red)';
     status.textContent='❌ Unexpected error: '+String(e);
   });
 }
 
-function generateHtmlReport(){ generateReport(); }
+function generateHtmlReport(){
+  generateReport();
+  // Trigger download of the generated HTML report
+  setTimeout(function(){
+    var reportEl=document.getElementById('report-output');
+    if(!reportEl||!reportEl.innerHTML) return;
+    var now=new Date();
+    var ds=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+    var style='<style>body{font-family:sans-serif;font-size:12px;color:#111;background:#fff;padding:2rem}table{border-collapse:collapse;width:100%;margin-bottom:1rem}th,td{border:1px solid #ddd;padding:4px 8px;text-align:left}th{background:#7B1C2E;color:#fff}tr:nth-child(even){background:#f9f9f9}.rpt-section{margin-bottom:1.5rem}.rpt-sec-hd{font-size:14px;font-weight:700;border-bottom:2px solid #7B1C2E;padding-bottom:4px;margin-bottom:.75rem}.rpt-kpi-row{display:flex;gap:1rem;flex-wrap:wrap}.rpt-kpi{text-align:center;padding:.75rem 1.25rem;background:#f5f5f5;border-radius:8px;min-width:100px}.rpt-kpi-v{font-size:24px;font-weight:700}.rpt-kpi-l{font-size:11px;color:#666}.badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600}</style>';
+    var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>ICT Asset Report '+ds+'</title>'+style+'</head><body>'+reportEl.innerHTML+'</body></html>';
+    var blob=new Blob([html],{type:'text/html;charset=utf-8;'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download='ICT_Asset_Report_'+ds+'.html'; a.style.display='none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},500);
+    toast('HTML report downloaded','ok');
+  },200);
+}
 
 function buildReportFilters(){
   var depts=Object.keys(deptSet).sort();
@@ -2243,9 +2306,10 @@ function generateReport(){
   var dateStr=now.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
   var timeStr=now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 
-  // Filter active inventory
+  // Filter active inventory (exclude Disposed; Replaced handled separately)
   var active=rows.filter(function(r){
     if(r['Condition/Status']==='Disposed') return false;
+    if(r['Condition/Status']==='Replaced') return false;
     if(deptFilter&&r['Department/Location']!==deptFilter) return false;
     if(typeFilter&&r['Equipment Type']!==typeFilter) return false;
     return true;
@@ -2257,20 +2321,36 @@ function generateReport(){
       (!typeFilter||r['Equipment Type']===typeFilter);
   });
 
-  // Summary counts
-  var total=active.filter(function(r){return r['Condition/Status']!=='Replaced';}).length;
-  var good=active.filter(function(r){var c=r['Condition/Status']||'';return c==='Good'||c==='New'||c==='Fair';}).length;
-  var repair=active.filter(function(r){return (r['Condition/Status']||'').indexOf('Repair')>-1;}).length;
-
-  // Group by department
-  var byDept={};
-  active.filter(function(r){return r['Condition/Status']!=='Replaced';}).forEach(function(r){
-    var d=r['Department/Location']||'Unknown';
-    if(!byDept[d])byDept[d]=[];
-    byDept[d].push(r);
+  var disposed=rows.filter(function(r){
+    return r['Condition/Status']==='Disposed'&&
+      (!deptFilter||r['Department/Location']===deptFilter)&&
+      (!typeFilter||r['Equipment Type']===typeFilter);
   });
 
-  // Recent changes from history (last 90 days or all if small)
+  // KPI buckets — must be mutually exclusive and sum to total
+  var total=active.length;
+  var nNew   =active.filter(function(r){return r['Condition/Status']==='New';}).length;
+  var nGood  =active.filter(function(r){return r['Condition/Status']==='Good';}).length;
+  var nFair  =active.filter(function(r){return r['Condition/Status']==='Fair';}).length;
+  var nRepair=active.filter(function(r){return (r['Condition/Status']||'').indexOf('Repair')>-1;}).length;
+  // Anything not caught above (custom statuses)
+  var nOther =total - nNew - nGood - nFair - nRepair;
+
+  // Count by type and by department for breakdown tables
+  var byType={}, byDeptCount={};
+  active.forEach(function(r){
+    var t=r['Equipment Type']||'Unknown';
+    var d=r['Department/Location']||'Unknown';
+    var inRepair=(r['Condition/Status']||'').indexOf('Repair')>-1;
+    if(!byType[t]) byType[t]={total:0,repair:0};
+    byType[t].total++;
+    if(inRepair) byType[t].repair++;
+    if(!byDeptCount[d]) byDeptCount[d]={total:0,repair:0};
+    byDeptCount[d].total++;
+    if(inRepair) byDeptCount[d].repair++;
+  });
+
+  // Recent changes from history (last 90 days)
   var cutoff=new Date(); cutoff.setDate(cutoff.getDate()-90);
   var recentHistory=histItems.filter(function(h){
     if(deptFilter&&h.from!==deptFilter&&h.to!==deptFilter) return false;
@@ -2285,6 +2365,49 @@ function generateReport(){
   });
 
   var title='ICT Asset Report'+(deptFilter?' — '+deptFilter:''+(typeFilter?' — '+typeFilter:''));
+  var deptCount=Object.keys(byDeptCount).length;
+
+  // ── Build type rows ──
+  var rowNum=0;
+  var typeKeys=Object.keys(byType).sort(function(a,b){return byType[b].total-byType[a].total;});
+  var typeRowsHtml=typeKeys.map(function(t){
+    rowNum++;
+    var d=byType[t];
+    var pct=total?Math.round(d.total/total*100):0;
+    return '<tr>'+
+      '<td style="text-align:center;color:var(--text3);font-size:11px">'+rowNum+'</td>'+
+      '<td>'+escHtml(t)+'</td>'+
+      '<td style="text-align:center;font-weight:600">'+d.total+'</td>'+
+      '<td style="text-align:center;color:#1a7a3f">'+(d.total-d.repair)+'</td>'+
+      '<td style="text-align:center;color:#b45309">'+(d.repair||'—')+'</td>'+
+      '<td style="text-align:center;color:#475569">'+pct+'%</td>'+
+    '</tr>';
+  }).join('');
+  typeRowsHtml+='<tr style="font-weight:700;background:var(--bg3)">'+
+    '<td></td><td>TOTAL</td><td style="text-align:center">'+total+'</td>'+
+    '<td style="text-align:center;color:#1a7a3f">'+(total-nRepair)+'</td>'+
+    '<td style="text-align:center;color:#b45309">'+nRepair+'</td>'+
+    '<td style="text-align:center">100%</td></tr>';
+
+  // ── Build dept rows ──
+  var deptNum=0;
+  var deptKeys=Object.keys(byDeptCount).sort(function(a,b){return byDeptCount[b].total-byDeptCount[a].total;});
+  var deptRowsHtml=deptKeys.map(function(d){
+    deptNum++;
+    var v=byDeptCount[d];
+    var pct=total?Math.round(v.total/total*100):0;
+    return '<tr>'+
+      '<td style="text-align:center;color:var(--text3);font-size:11px">'+deptNum+'</td>'+
+      '<td>'+escHtml(d)+'</td>'+
+      '<td style="text-align:center;font-weight:600">'+v.total+'</td>'+
+      '<td style="text-align:center;color:#b45309">'+(v.repair||'—')+'</td>'+
+      '<td style="text-align:center;color:#475569">'+pct+'%</td>'+
+    '</tr>';
+  }).join('');
+  deptRowsHtml+='<tr style="font-weight:700;background:var(--bg3)">'+
+    '<td></td><td>TOTAL</td><td style="text-align:center">'+total+'</td>'+
+    '<td style="text-align:center;color:#b45309">'+nRepair+'</td>'+
+    '<td style="text-align:center">100%</td></tr>';
 
   var html=
     '<div style="margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">'+
@@ -2295,55 +2418,49 @@ function generateReport(){
       '<div style="font-size:11px;color:var(--text3);text-align:right">St. Anne Mission Hospital<br>ICT Command Centre v2</div>'+
     '</div>'+
 
-    // KPI Summary
+    // ── KPI Summary — all buckets shown so they add up to Active ──
     '<div class="rpt-section">'+
       '<div class="rpt-sec-hd">📊 Summary</div>'+
       '<div class="rpt-kpi-row">'+
         '<div class="rpt-kpi"><div class="rpt-kpi-v">'+total+'</div><div class="rpt-kpi-l">Active Assets</div></div>'+
-        '<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--green)">'+good+'</div><div class="rpt-kpi-l">Good / New</div></div>'+
-        (repair?'<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--amber)">'+repair+'</div><div class="rpt-kpi-l">Need Repair</div></div>':'')+
+        (nNew?'<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--blue)">'+nNew+'</div><div class="rpt-kpi-l">New</div></div>':'')+
+        (nGood?'<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--green)">'+nGood+'</div><div class="rpt-kpi-l">Good</div></div>':'')+
+        (nFair?'<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--teal)">'+nFair+'</div><div class="rpt-kpi-l">Fair</div></div>':'')+
+        (nRepair?'<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--amber)">'+nRepair+'</div><div class="rpt-kpi-l">Need Repair</div></div>':'')+
+        (nOther?'<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--text2)">'+nOther+'</div><div class="rpt-kpi-l">Other</div></div>':'')+
         '<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--purple)">'+replaced.length+'</div><div class="rpt-kpi-l">Replaced</div></div>'+
-        '<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--teal)">'+Object.keys(byDept).length+'</div><div class="rpt-kpi-l">Departments</div></div>'+
+        '<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--text3)">'+disposed.length+'</div><div class="rpt-kpi-l">Disposed</div></div>'+
+        '<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--text2)">'+deptCount+'</div><div class="rpt-kpi-l">Departments</div></div>'+
         (totalCost>0?'<div class="rpt-kpi"><div class="rpt-kpi-v" style="color:var(--amber);font-size:14px">KES '+totalCost.toLocaleString()+'</div><div class="rpt-kpi-l">Logged Costs</div></div>':'')+
       '</div>'+
     '</div>'+
 
-    // Asset inventory by department
+    // ── Asset Breakdown: by Type, then by Department stacked ──
     '<div class="rpt-section">'+
-      '<div class="rpt-sec-hd">📦 Current Inventory by Department</div>'+
-      Object.keys(byDept).sort().map(function(dept){
-        var items=byDept[dept];
-        return '<div style="padding:.5rem 1rem .25rem;font-size:11px;font-weight:700;color:var(--text2);background:rgba(0,0,0,.06);border-bottom:1px solid var(--border)">'+escHtml(dept)+' ('+items.length+' assets)</div>'+
-          '<table class="rpt-table">'+
-          '<thead><tr><th>#</th><th>Type</th><th>Brand/Model</th><th>Serial No.</th><th>Assigned To</th><th>Status</th><th>Date Collected</th><th>IP Address</th></tr></thead>'+
-          '<tbody>'+
-          items.map(function(r,i){
-            var cond=r['Condition/Status']||'';
-            var color=cond.indexOf('Repair')>-1?'color:var(--amber)':cond==='New'?'color:var(--blue)':'';
-            return '<tr>'+
-              '<td style="color:var(--text3)">'+(i+1)+'</td>'+
-              '<td>'+escHtml(r['Equipment Type']||'')+'</td>'+
-              '<td>'+escHtml(r['Brand/Model']||'')+'</td>'+
-              '<td style="font-family:monospace;font-size:11px">'+escHtml(r['Serial No.']||'—')+'</td>'+
-              '<td>'+escHtml(r['Assigned To']||'—')+'</td>'+
-              '<td style="'+color+'">'+escHtml(cond||'—')+'</td>'+
-              '<td>'+escHtml(r['Date Collected']||'—')+'</td>'+
-              '<td style="font-family:monospace;font-size:11px">'+escHtml(r['IP Address']||'—')+'</td>'+
-            '</tr>';
-          }).join('')+
-          '</tbody></table>';
-      }).join('')+
+      '<div class="rpt-sec-hd">📦 Asset Breakdown by Equipment Type</div>'+
+      '<table class="rpt-table">'+
+        '<thead><tr><th style="width:2rem">No.</th><th>Equipment Type</th><th>Total</th><th>Operational</th><th>Repair</th><th>%</th></tr></thead>'+
+        '<tbody>'+typeRowsHtml+'</tbody>'+
+      '</table>'+
+    '</div>'+
+
+    '<div class="rpt-section">'+
+      '<div class="rpt-sec-hd">🏢 Asset Breakdown by Department / Location</div>'+
+      '<table class="rpt-table">'+
+        '<thead><tr><th style="width:2rem">No.</th><th>Department / Location</th><th>Total</th><th>Repair</th><th>%</th></tr></thead>'+
+        '<tbody>'+deptRowsHtml+'</tbody>'+
+      '</table>'+
     '</div>'+
 
     // Assets needing repair
-    (repair>0?
+    (nRepair>0?
       '<div class="rpt-section">'+
         '<div class="rpt-sec-hd">⚠️ Assets Requiring Repair</div>'+
         '<table class="rpt-table">'+
-        '<thead><tr><th>Type</th><th>Brand/Model</th><th>Serial No.</th><th>Department</th><th>Assigned To</th><th>Remarks</th></tr></thead>'+
+        '<thead><tr><th>Type</th><th>Brand / Model</th><th>No.</th><th>Department</th><th>Assigned To</th><th>Remarks</th></tr></thead>'+
         '<tbody>'+
         active.filter(function(r){return (r['Condition/Status']||'').indexOf('Repair')>-1;}).map(function(r){
-          return '<tr style="background:rgba(240,165,0,.05)">'+
+          return '<tr style="background:rgba(240,165,0,.04)">'+
             '<td>'+escHtml(r['Equipment Type']||'')+'</td>'+
             '<td>'+escHtml(r['Brand/Model']||'')+'</td>'+
             '<td style="font-family:monospace;font-size:11px">'+escHtml(r['Serial No.']||'—')+'</td>'+
@@ -2361,7 +2478,7 @@ function generateReport(){
       '<div class="rpt-section">'+
         '<div class="rpt-sec-hd">🕐 Recent Changes & Activity (Last 90 Days)</div>'+
         '<table class="rpt-table">'+
-        '<thead><tr><th>Date</th><th>Event</th><th>Asset</th><th>Serial</th><th>From</th><th>To / Dept</th><th>Description</th><th>Cost (KES)</th></tr></thead>'+
+        '<thead><tr><th>Date</th><th>Event</th><th>Asset</th><th>No.</th><th>From</th><th>To / Dept</th><th>Description</th><th>Cost (KES)</th></tr></thead>'+
         '<tbody>'+
         recentHistory.map(function(h){
           var costMatch=h.note.match(/\[Cost: KES ([^\]]+)\]/);
@@ -2382,15 +2499,35 @@ function generateReport(){
       '</div>'
     :'')+
 
-    // Replacements
+    // Replaced assets
     (replaced.length>0?
       '<div class="rpt-section">'+
         '<div class="rpt-sec-hd">🔁 Replaced Assets</div>'+
         '<table class="rpt-table">'+
-        '<thead><tr><th>Type</th><th>Brand/Model</th><th>Serial No.</th><th>Department</th><th>Remarks</th></tr></thead>'+
+        '<thead><tr><th>Type</th><th>Brand / Model</th><th>No.</th><th>Department</th><th>Remarks</th></tr></thead>'+
         '<tbody>'+
         replaced.map(function(r){
-          return '<tr style="opacity:.7">'+
+          return '<tr style="opacity:.75">'+
+            '<td>'+escHtml(r['Equipment Type']||'')+'</td>'+
+            '<td>'+escHtml(r['Brand/Model']||'')+'</td>'+
+            '<td style="font-family:monospace;font-size:11px">'+escHtml(r['Serial No.']||'—')+'</td>'+
+            '<td>'+escHtml(r['Department/Location']||'—')+'</td>'+
+            '<td style="font-size:11px;color:var(--text2)">'+escHtml((r['Remarks']||'').substring(0,80))+'</td>'+
+          '</tr>';
+        }).join('')+
+        '</tbody></table>'+
+      '</div>'
+    :'')+
+
+    // Disposed assets
+    (disposed.length>0?
+      '<div class="rpt-section">'+
+        '<div class="rpt-sec-hd">🗑️ Disposed Assets</div>'+
+        '<table class="rpt-table">'+
+        '<thead><tr><th>Type</th><th>Brand / Model</th><th>No.</th><th>Department</th><th>Remarks</th></tr></thead>'+
+        '<tbody>'+
+        disposed.map(function(r){
+          return '<tr style="opacity:.6">'+
             '<td>'+escHtml(r['Equipment Type']||'')+'</td>'+
             '<td>'+escHtml(r['Brand/Model']||'')+'</td>'+
             '<td style="font-family:monospace;font-size:11px">'+escHtml(r['Serial No.']||'—')+'</td>'+
@@ -2407,7 +2544,7 @@ function generateReport(){
     '</div>';
 
   document.getElementById('report-output').innerHTML=html;
-  toast('Report generated — '+total+' assets','ok');
+  toast('Report generated — '+total+' active assets','ok');
 }
 
 function printReport(){
@@ -2605,13 +2742,24 @@ function doLogout(){
   // Hide app, clear state, show login
   document.getElementById('app').style.display='none';
   document.getElementById('login-overlay').style.display='flex';
-  document.getElementById('pin-input').value='';
   document.getElementById('login-err').style.display='none';
   document.getElementById('login-form').style.display='';
   document.getElementById('setup-form').style.display='none';
   // Reset in-memory state so stale data can't be read
   rows=[]; inkState={}; logItems=[]; histItems=[];
-  setTimeout(function(){document.getElementById('pin-input').focus();},150);
+  // Clear and focus pin input — use multiple attempts for pywebview focus reliability
+  var pinEl=document.getElementById('pin-input');
+  pinEl.value='';
+  pinEl.disabled=false;
+  pinEl.blur();
+  setTimeout(function(){
+    pinEl.value='';
+    pinEl.disabled=false;
+    pinEl.style.pointerEvents='';
+    pinEl.focus();
+    // Second attempt in case pywebview deferred the first
+    setTimeout(function(){ pinEl.focus(); }, 250);
+  }, 200);
   toast('Logged out successfully','info');
   // Log logout asynchronously (best-effort — data already cleared)
   try { pywebview.api.log_action('LOGOUT','Session ended — user logged out'); } catch(e){}

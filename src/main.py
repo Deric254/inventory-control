@@ -605,9 +605,9 @@ class Api:
             return json.dumps({"ok": False, "error": str(e)})
 
     def generate_pdf(self, dept_filter='', type_filter=''):
-        """Generate professional PDF report and return its path."""
+        """Generate PDF report, return base64 content for browser download."""
         try:
-            import tempfile, os
+            import os, base64
             out_dir = os.path.join(BASE_DIR, 'reports')
             os.makedirs(out_dir, exist_ok=True)
             ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -622,15 +622,11 @@ class Api:
                     break
             result = generate_pdf_report(self.engine, out_path, dept_filter, type_filter, logo_path)
             if result['ok']:
-                # Add filename so browser mode can build a /reports/<fname> download URL
                 result['filename'] = fname
-                # Also try to open with system viewer (works in desktop mode)
-                import subprocess, sys
-                try:
-                    if sys.platform == 'win32':    os.startfile(out_path)
-                    elif sys.platform == 'darwin': subprocess.Popen(['open', out_path])
-                    else:                          subprocess.Popen(['xdg-open', out_path])
-                except: pass
+                # Read the PDF bytes and return as base64 so the JS side
+                # can trigger a real Save-As download in any mode (pywebview/Electron/browser)
+                with open(out_path, 'rb') as f:
+                    result['b64'] = base64.b64encode(f.read()).decode('ascii')
             return json.dumps(result)
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
@@ -1261,75 +1257,31 @@ def generate_pdf_report(engine: "ExcelEngine", output_path: str,
             f'Leading category: <b>{top_type}</b>. Highest asset count: <b>{top_dept}</b>.',
             s_exec))
 
-        # ── Equipment by Type + Department (side by side) ─
-        story += sh('Asset Breakdown')
+        # ── Equipment by Type — full width with row number column ──
+        story += sh('Asset Breakdown by Equipment Type')
+
+        # Row number | Equipment Type | Total | Good | Repair | %
+        # Full page width; narrow No. col on the left margin
+        NO_W  = BW * 0.055   # "#" column
+        TY_W  = BW * 0.385   # Equipment Type
+        TO_W  = BW * 0.12    # Total
+        GD_W  = BW * 0.13    # Good
+        RP_W  = BW * 0.13    # Repair
+        PC_W  = BW * 0.18    # %
+        type_cw_full = [NO_W, TY_W, TO_W, GD_W, RP_W, PC_W]
 
         type_rows = []
-        for etype, cnt in type_counts.most_common():
+        for idx, (etype, cnt) in enumerate(type_counts.most_common(), 1):
             tr  = [r for r in active if r.get('Equipment Type','') == etype]
             rep = sum(1 for r in tr if bucket(r.get('Condition/Status')) == 'repair')
             ok  = cnt - rep
-            type_rows.append([etype, str(cnt), str(ok), str(rep),
+            type_rows.append([str(idx), etype, str(cnt), str(ok), str(rep),
                                f'{round(cnt/total*100)}%' if total else '0%'])
-        type_rows.append(['TOTAL', str(total), str(n_ok), str(n_repair), '100%'])
+        type_rows.append(['—', 'TOTAL', str(total), str(n_ok), str(n_repair), '100%'])
 
-        dept_rows = []
-        for dept, cnt in dept_counts.most_common():
-            dr  = [r for r in active if r.get('Department/Location','') == dept]
-            rep = sum(1 for r in dr if bucket(r.get('Condition/Status')) == 'repair')
-            dept_rows.append([dept, str(cnt), str(rep),
-                               f'{round(cnt/total*100)}%' if total else '0%'])
-        dept_rows.append(['TOTAL', str(total), str(n_repair), '100%'])
-
-        # Side by side: each table rendered into its own Frame so ReportLab
-        # can split each independently across pages without overflow errors.
-        GAP = 0.3*cm
-        TW  = (BW - GAP) * 0.48
-        DW  = BW - TW - GAP
-
-        type_cw = [TW*0.42, TW*0.14, TW*0.15, TW*0.15, TW*0.14]
-        dept_cw = [DW*0.52, DW*0.16, DW*0.16, DW*0.16]
-
-        t_type = dtable(['Equipment Type','Total','Good','Repair','%'], type_rows, type_cw)
-        t_dept = dtable(['Department','Total','Repair','%'], dept_rows, dept_cw)
-
-        class SideBySide(Flowable):
-            """Draws two flowables into adjacent Frames; each can split across pages."""
-            def __init__(self, left, right, lw, rw, gap):
-                Flowable.__init__(self)
-                self._left, self._right = left, right
-                self._lw, self._rw, self._gap = lw, rw, gap
-
-            def _height_of(self, flowable, width):
-                w, h = flowable.wrap(width, 9999)
-                return h
-
-            def wrap(self, aW, aH):
-                lh = self._height_of(self._left,  self._lw)
-                rh = self._height_of(self._right, self._rw)
-                self.height = max(lh, rh)
-                return aW, self.height
-
-            def draw(self):
-                from reportlab.platypus import Frame as _Frame
-                c = self.canv
-                lf = _Frame(0, 0, self._lw, self.height,
-                            leftPadding=0, rightPadding=0,
-                            topPadding=0, bottomPadding=0)
-                rf = _Frame(self._lw + self._gap, 0, self._rw, self.height,
-                            leftPadding=0, rightPadding=0,
-                            topPadding=0, bottomPadding=0)
-                lf.addFromList([self._left],  c)
-                rf.addFromList([self._right], c)
-
-            def split(self, aW, aH):
-                # If the combined height fits, no split needed.
-                if aH >= self.height:
-                    return [self]
-                # Otherwise fall back to stacking vertically so nothing is lost.
-                return [self._left, Spacer(1, 4), self._right]
-
-        story.append(SideBySide(t_type, t_dept, TW, DW, GAP))
+        story.append(dtable(
+            ['No.', 'Equipment Type', 'Total', 'Good', 'Repair', '%'],
+            type_rows, type_cw_full))
 
         # ── Assets Needing Attention ────────────────────
         repair_assets = [r for r in active if bucket(r.get('Condition/Status')) == 'repair']
@@ -1344,7 +1296,7 @@ def generate_pdf_report(engine: "ExcelEngine", output_path: str,
             ] for r in repair_assets]
             cw_rep = [BW*0.18, BW*0.22, BW*0.18, BW*0.26, BW*0.16]
             story.append(dtable(
-                ['Type','Brand / Model','Serial No.','Department','Status'],
+                ['Type','Brand / Model','No.','Department','Status'],
                 r_rows, cw_rep, hbg=HexColor('#7B1C2E')))
 
         # ── Recent Activity ─────────────────────────────
