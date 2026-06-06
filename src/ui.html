@@ -1274,7 +1274,7 @@ function doLogin(){
   var pin=document.getElementById('pin-input').value;
   pywebview.api.verify_pin(pin).then(function(r){
     var res=JSON.parse(r);
-    if(res.ok && res.valid){
+    if(res.valid){
       document.getElementById('login-overlay').style.display='none';
       document.getElementById('app').style.display='flex';
       loadApp();
@@ -1519,29 +1519,28 @@ function updateTopKPIs(){
 // DASHBOARD
 // ══════════════════════════════════════════════════════
 function renderDashboard(){
-  // ── KPI counts: every row falls into exactly one bucket ──
-  var newC=0, good=0, repair=0, other=0, replaced=0, disposed=0;
+  // ── KPI counts: same buckets as generateReport() for full consistency ──
+  var replaced=0, disposed=0;
   rows.forEach(function(r){
     var c=(r['Condition/Status']||'').trim();
-    var cl=c.toLowerCase();
-    if(c==='Replaced')              { replaced++; return; }
-    if(c==='Disposed')              { disposed++; return; }
-    if(c==='New')                   { newC++;     return; }
-    if(cl.indexOf('repair')>-1)     { repair++;   return; }  // catches Needs Repair, Fair (Needs Repair), etc.
-    if(c===''||c==='Good'||c==='Fair'||cl.indexOf('good')>-1||cl.indexOf('fair')>-1) { good++; return; }
-    // Everything else (custom statuses) goes into good bucket
-    good++;
+    if(c==='Replaced') replaced++;
+    if(c==='Disposed') disposed++;
   });
   var active=rows.filter(function(r){
     var c=(r['Condition/Status']||'').trim();
     return c!=='Replaced'&&c!=='Disposed';
   });
-  var total=active.length; // newC + good + repair (should always add up now)
+  var total=active.length;
+  var nNew   =active.filter(function(r){return (r['Condition/Status']||'').trim()==='New';}).length;
+  var nGood  =active.filter(function(r){return (r['Condition/Status']||'').trim()==='Good';}).length;
+  var nFair  =active.filter(function(r){return (r['Condition/Status']||'').trim()==='Fair';}).length;
+  var repair =active.filter(function(r){return (r['Condition/Status']||'').indexOf('Repair')>-1;}).length;
+  var nOther =total - nNew - nGood - nFair - repair;
   var depts=Object.keys(deptSet).length;
-  var goodTotal=newC+good;
+  var goodTotal=nNew+nGood+nFair; // matches report: New + Good + Fair = all operational
   document.getElementById('kpi-grid').innerHTML=
     kpi('blue','📦',total,'Total Active Assets',depts+' departments')+
-    kpi('green','✅',goodTotal,'Good / New',Math.round(total?((goodTotal)/total)*100:0)+'% of fleet')+
+    kpi('green','✅',goodTotal,'Operational',Math.round(total?(goodTotal/total)*100:0)+'% of fleet')+
     kpi('amber','⚠️',repair,'Need Repair','Requires attention')+
     kpi('purple','🔁',replaced,'Replaced','Lifecycle events')+
     kpi('cyan','🗑️',disposed,'Disposed','Retired assets')+
@@ -1552,8 +1551,9 @@ function renderDashboard(){
   active.forEach(function(r){var d=r['Department/Location']||'Unknown';deptCounts[d]=(deptCounts[d]||0)+1;});
   var deptKeys=Object.keys(deptCounts).sort(function(a,b){return deptCounts[b]-deptCounts[a];}).slice(0,8);
 
-  // Condition distribution — only active (non-replaced, non-disposed), non-zero
-  var condData={'New':newC,'Good / Fair':good,'Needs Repair':repair};
+  // Condition distribution — same buckets as report, non-zero only
+  var condData={'New':nNew,'Good':nGood,'Fair':nFair,'Needs Repair':repair};
+  if(nOther>0) condData['Other']=nOther;
   var condLabels=Object.keys(condData).filter(function(k){return condData[k]>0;});
   var condValues=condLabels.map(function(k){return condData[k];});
   var condTotal=condValues.reduce(function(a,b){return a+b;},0);
@@ -2556,8 +2556,9 @@ function printReport(){
 // ══════════════════════════════════════════════════════
 // INK
 // ══════════════════════════════════════════════════════
-var INK_COLORS={BK:'#333',C:'#0ea5e9',LC:'#7dd3fc',M:'#db2777',LM:'#f9a8d4',Y:'#eab308'};
-var INK_MAX={BK:12,C:6,LC:8,M:4,LM:8,Y:14};
+var INK_COLORS={BK:'#a89060',C:'#0ea5e9',LC:'#7dd3fc',M:'#db2777',LM:'#f9a8d4',Y:'#eab308'};
+var INK_MAX={BK:20,C:20,LC:20,M:20,LM:20,Y:20};
+var INK_LOW=5; // ≤5 pieces = Low stock
 
 function renderInk(){
   // ── Ink dashboard summary ───────────────────────────
@@ -2566,9 +2567,8 @@ function renderInk(){
   ['BK','C','LC','M','LM','Y'].forEach(function(code){
     var s=inkState[code]||{store:0};
     total+=s.store;
-    var pct=Math.min(100,Math.round((s.store/(INK_MAX[code]||10))*100));
     if(s.store===0) out.push(INK_NAMES_D[code]);
-    else if(pct<25) low.push(INK_NAMES_D[code]);
+    else if(s.store<=INK_LOW) low.push(INK_NAMES_D[code]);
   });
   var dash=document.getElementById('ink-dashboard');
   if(dash){
@@ -2587,18 +2587,19 @@ function renderInk(){
         '<div style="font-size:10.5px;color:var(--text3);margin-top:.25rem">'+(out.length?out.join(', '):'All colours in stock')+'</div>'+
       '</div>'+
       '<div style="background:var(--bg2);border:1px solid '+(low.length?'rgba(232,150,10,.35)':'var(--border)')+';border-radius:11px;padding:.9rem 1.1rem">'+
-        '<div style="font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.35rem">Running Low</div>'+
+        '<div style="font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.35rem">Running Low <span style="font-weight:400;opacity:.6;text-transform:none;letter-spacing:0">(≤'+INK_LOW+')</span></div>'+
         '<div style="font-family:\'Syne\',sans-serif;font-size:28px;font-weight:800;color:'+(low.length?'var(--amber)':'var(--green)')+';line-height:1">'+low.length+'</div>'+
-        '<div style="font-size:10.5px;color:var(--text3);margin-top:.25rem">'+(low.length?low.join(', '):'All above 25%')+'</div>'+
+        '<div style="font-size:10.5px;color:var(--text3);margin-top:.25rem">'+(low.length?low.join(', '):'All colours above '+INK_LOW+' pieces')+'</div>'+
       '</div>'+
       '</div>';
     // Colour stock visual panel with segmented bars
     var stockRows=['BK','C','LC','M','LM','Y'].map(function(code){
       var s=inkState[code]||{store:0};
-      var maxQ=INK_MAX[code]||10;
+      var maxQ=INK_MAX[code]||20;
       var pct=Math.min(100,Math.round((s.store/maxQ)*100));
       var col=INK_COLORS[code]||'#888';
-      var barCol=pct===0?'var(--red)':pct<25?'var(--red)':pct<40?'var(--amber)':col;
+      var isOut=s.store===0, isLow=s.store<=INK_LOW&&s.store>0;
+      var barCol=isOut?'var(--red)':isLow?'var(--amber)':col;
       var segs=10, filled=Math.round(pct/10), segsHtml='';
       for(var si2=0;si2<segs;si2++){
         segsHtml+='<div style="flex:1;height:7px;border-radius:2px;margin-right:2px;background:'+(si2<filled?barCol:'var(--bg4)')+';transition:background .3s"></div>';
@@ -2619,7 +2620,7 @@ function renderInk(){
     }).join('');
     var stockPanel=
       '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:1rem 1.25rem;margin-bottom:.75rem">'+
-      '<div style="font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem">Stock Levels by Colour</div>'+
+      '<div style="font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem">Stock Levels by Colour &nbsp;<span style="font-weight:400;opacity:.5;text-transform:none;letter-spacing:0">Target: '+INK_MAX['BK']+' &nbsp;·&nbsp; Low alert: ≤'+INK_LOW+'</span></div>'+
       stockRows+
       '</div>';
     dash.innerHTML=kpiRow+stockPanel;
@@ -2627,8 +2628,10 @@ function renderInk(){
   var html='';
   ['BK','C','LC','M','LM','Y'].forEach(function(code){
     var s=inkState[code]||{store:0,bigIct:1,smallIct:1};
-    var pct=Math.min(100,Math.round((s.store/(INK_MAX[code]||10))*100));
+    var pct=Math.min(100,Math.round((s.store/(INK_MAX[code]||20))*100));
     var col=INK_COLORS[code]||'#888';
+    var isOut=s.store===0, isLow=s.store<=INK_LOW&&s.store>0;
+    var statusCol=isOut?'var(--red)':isLow?'var(--amber)':'var(--green)';
     var names={BK:'Black',C:'Cyan',LC:'Lt Cyan',M:'Magenta',LM:'Lt Magenta',Y:'Yellow'};
     html+='<div class="ink-card">'+
       '<div class="ink-hd"><div class="ink-name-row">'+
@@ -2636,8 +2639,8 @@ function renderInk(){
         '<div><div class="ink-label">'+names[code]+'</div><div class="ink-code">'+code+'</div></div>'+
       '</div></div>'+
       '<div class="ink-big-num" style="color:'+col+'">'+s.store+'</div>'+
-      '<div class="ink-sub">cartridges in store &nbsp;<span style="font-weight:700;color:'+(pct<20?'var(--red)':pct<40?'var(--amber)':'var(--green)')+'">'+pct+'%</span></div>'+
-      '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+col+'"></div></div>'+
+      '<div class="ink-sub">cartridges in store &nbsp;<span style="font-weight:700;color:'+statusCol+'">'+pct+'%</span></div>'+
+      '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+(isOut?'var(--red)':isLow?'var(--amber)':col)+'"></div></div>'+
       '<div class="ink-printers">'+
         '<span>Big ICT: <input type="number" id="ink-big-'+code+'" value="'+s.bigIct+'" min="0" onchange="inkSetPrinter(\''+code+'\')" onclick="event.stopPropagation()"></span>'+
         '<span>Small ICT: <input type="number" id="ink-sml-'+code+'" value="'+s.smallIct+'" min="0" onchange="inkSetPrinter(\''+code+'\')" onclick="event.stopPropagation()"></span>'+
