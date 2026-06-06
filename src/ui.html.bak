@@ -790,7 +790,10 @@ code, .mono{font-family:'DM Mono',monospace}
       <div class="card-hd"><span class="card-title">📄 Professional PDF Report</span></div>
       <div class="card-bd">
         <div style="font-size:12.5px;color:var(--text2);margin-bottom:1.1rem;line-height:1.6">
-          Generate a professional ICT Asset Report as a PDF file — includes Executive Summary, equipment breakdown, departmental distribution, assets requiring attention, and recent activity.
+          Generate a full professional ICT Asset Management Report as a PDF file. The report includes an
+          <strong>Executive Summary</strong>, equipment type breakdown, departmental distribution, assets requiring
+          attention, recent activity log, and a complete inventory. Place a <code>logo.png</code> file in the
+          app folder and it will appear on every page header.
         </div>
         <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem">
           <div class="ff" style="min-width:180px">
@@ -806,6 +809,14 @@ code, .mono{font-family:'DM Mono',monospace}
           </button>
         </div>
         <div id="pdf-status" style="font-size:12px;min-height:1.4em"></div>
+        <div style="background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:.875rem 1rem;margin-top:.5rem">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem">📁 Logo Setup</div>
+          <div style="font-size:12px;color:var(--text2)">
+            To include your hospital logo on the report, place a file named <code style="background:var(--bg2);padding:1px 5px;border-radius:4px">logo.png</code>
+            in the same folder as <code style="background:var(--bg2);padding:1px 5px;border-radius:4px">main.py</code>.
+            The logo will appear in the header of every page alongside the hospital name and slogan.
+          </div>
+        </div>
       </div>
     </div>
 
@@ -819,7 +830,6 @@ code, .mono{font-family:'DM Mono',monospace}
 
   <!-- INK -->
   <div class="content sec" id="sec-ink">
-    <div id="ink-dashboard" style="margin-bottom:1rem"></div>
     <div class="ink-grid" id="ink-grid"></div>
     <div class="card"><div class="card-hd"><span class="card-title">Ink Usage Log</span></div>
       <div class="card-bd" id="ink-log-list" style="max-height:280px;overflow-y:auto"></div>
@@ -898,8 +908,17 @@ code, .mono{font-family:'DM Mono',monospace}
       </div>
     </div>
 
-  </div><!-- /sec-settings -->
-<!-- portable-builder card intentionally removed -->
+    <div class="card" style="max-width:520px">
+      <div class="card-hd"><span class="card-title">📦 Portable App Builder</span></div>
+      <div class="card-bd">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:1rem">
+          Generate installer scripts to deploy this system on any new Windows or Mac/Linux device. Your data travels with the folder — no internet required.
+        </div>
+        <button class="btn teal" onclick="buildInstaller()">🔧 Generate Installer Files</button>
+        <div id="build-msg" style="margin-top:.875rem;font-size:12px"></div>
+      </div>
+    </div>
+  </div>
 
 </div><!-- /main -->
 </div><!-- /wrap -->
@@ -1159,7 +1178,7 @@ Chart.prototype._drawBar = function(size){
   var values = ds.data || [];
   var colors = ds.backgroundColor || ['#58a6ff'];
   var max = Math.max.apply(null, values.concat([1]));
-  var left = 34, right = 10, top = 30, bottom = 38;
+  var left = 34, right = 10, top = 12, bottom = 38;
   var plotW = size.w-left-right, plotH = size.h-top-bottom;
   ctx.strokeStyle='rgba(240,246,252,.08)';
   ctx.fillStyle='#8b949e';
@@ -1179,23 +1198,10 @@ Chart.prototype._drawBar = function(size){
     var y = top + plotH - h;
     ctx.fillStyle = colors[i % colors.length];
     ctx.fillRect(x,y,barW,h);
-    // Data label above bar: count + percentage
-    if(val > 0){
-      var pctLbl = (ds._totals && ds._totals[i]) ? ds._totals[i] : '';
-      ctx.fillStyle = '#e8dfd4';
-      ctx.font = 'bold 10px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(val, x+barW/2, y-13);
-      if(pctLbl){
-        ctx.fillStyle = '#8b949e';
-        ctx.font = '9px Inter, sans-serif';
-        ctx.fillText(pctLbl, x+barW/2, y-3);
-      }
-    }
     ctx.fillStyle = '#8b949e';
-    ctx.font = '10px Inter, sans-serif';
     ctx.textAlign = 'center';
     var txt = String(label || '');
+    // Smart truncation based on available bar width
     var maxChars = Math.max(4, Math.floor(barW / 6));
     if(txt.length > maxChars) txt = txt.slice(0,maxChars-1) + '…';
     ctx.fillText(txt, x+barW/2, size.h-18);
@@ -1369,7 +1375,7 @@ var NAV_LABELS={
   report:{title:'Asset Report',sub:'Portable summary report of all assets and changes'},
   ink:{title:'Ink Station',sub:'Printer ink tracking and restocking'},
   config:{title:'Customise',sub:'Add departments, types and status values'},
-  settings:{title:'Security',sub:'Change access PIN and manage your session'}
+  settings:{title:'Security & Setup',sub:'Change PIN and generate portable installer'}
 };
 
 function nav(id){
@@ -1382,10 +1388,8 @@ function nav(id){
   var info=NAV_LABELS[id]||{title:id,sub:''};
   document.getElementById('tb-title').textContent=info.title;
   document.getElementById('tb-sub').textContent=info.sub;
-  if(id==='transfers') reload(function(){renderTransferLog();});
-  if(id==='history')   reload(function(){renderHistory();});
-  if(id==='ink')       reload(function(){renderInk();});
-  if(id==='config')    renderConfig();
+  if(id==='transfers') renderTransferLog();
+  if(id==='config') renderConfig();
 }
 
 // ══════════════════════════════════════════════════════
@@ -1566,7 +1570,7 @@ function renderDashboard(){
     '<div class="card"><div class="card-hd"><span class="card-title">Condition Distribution</span></div><div class="card-bd"><canvas id="ch-cond" data-height="200" style="display:block;width:100%"></canvas></div></div>';
 
   setTimeout(function(){
-    new Chart(document.getElementById('ch-dept'),{type:'bar',data:{labels:deptKeys,datasets:[{data:deptKeys.map(function(k){return deptCounts[k];}),backgroundColor:colors,borderRadius:4,borderSkipped:false,_totals:deptKeys.map(function(k){var t=active.length||1;return Math.round(deptCounts[k]/t*100)+'%';})}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(240,246,252,.04)'}}},responsive:true,maintainAspectRatio:false}});
+    new Chart(document.getElementById('ch-dept'),{type:'bar',data:{labels:deptKeys,datasets:[{data:deptKeys.map(function(k){return deptCounts[k];}),backgroundColor:colors,borderRadius:4,borderSkipped:false}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b949e',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'rgba(240,246,252,.04)'}}},responsive:true,maintainAspectRatio:false}});
 
     // Pie with percentage labels
     new Chart(document.getElementById('ch-cond'),{
@@ -2423,70 +2427,6 @@ var INK_COLORS={BK:'#333',C:'#0ea5e9',LC:'#7dd3fc',M:'#db2777',LM:'#f9a8d4',Y:'#
 var INK_MAX={BK:12,C:6,LC:8,M:4,LM:8,Y:14};
 
 function renderInk(){
-  // ── Ink dashboard summary ───────────────────────────
-  var INK_NAMES_D={BK:'Black',C:'Cyan',LC:'Lt Cyan',M:'Magenta',LM:'Lt Magenta',Y:'Yellow'};
-  var total=0, low=[], out=[];
-  ['BK','C','LC','M','LM','Y'].forEach(function(code){
-    var s=inkState[code]||{store:0};
-    total+=s.store;
-    var pct=Math.min(100,Math.round((s.store/(INK_MAX[code]||10))*100));
-    if(s.store===0) out.push(INK_NAMES_D[code]);
-    else if(pct<25) low.push(INK_NAMES_D[code]);
-  });
-  var dash=document.getElementById('ink-dashboard');
-  if(dash){
-    var INK_NAMES_FULL={BK:'Black',C:'Cyan',LC:'Light Cyan',M:'Magenta',LM:'Light Magenta',Y:'Yellow'};
-    // KPI cards
-    var kpiRow=
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.625rem;margin-bottom:.75rem">'+
-      '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:.9rem 1.1rem">'+
-        '<div style="font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.35rem">Total In Store</div>'+
-        '<div style="font-family:\'Syne\',sans-serif;font-size:28px;font-weight:800;color:var(--text);line-height:1">'+total+'</div>'+
-        '<div style="font-size:10.5px;color:var(--text3);margin-top:.25rem">cartridges across all colours</div>'+
-      '</div>'+
-      '<div style="background:var(--bg2);border:1px solid '+(out.length?'rgba(255,77,94,.35)':'var(--border)')+';border-radius:11px;padding:.9rem 1.1rem">'+
-        '<div style="font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.35rem">Out of Stock</div>'+
-        '<div style="font-family:\'Syne\',sans-serif;font-size:28px;font-weight:800;color:'+(out.length?'var(--red)':'var(--green)')+';line-height:1">'+out.length+'</div>'+
-        '<div style="font-size:10.5px;color:var(--text3);margin-top:.25rem">'+(out.length?out.join(', '):'All colours in stock')+'</div>'+
-      '</div>'+
-      '<div style="background:var(--bg2);border:1px solid '+(low.length?'rgba(232,150,10,.35)':'var(--border)')+';border-radius:11px;padding:.9rem 1.1rem">'+
-        '<div style="font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.35rem">Running Low</div>'+
-        '<div style="font-family:\'Syne\',sans-serif;font-size:28px;font-weight:800;color:'+(low.length?'var(--amber)':'var(--green)')+';line-height:1">'+low.length+'</div>'+
-        '<div style="font-size:10.5px;color:var(--text3);margin-top:.25rem">'+(low.length?low.join(', '):'All above 25%')+'</div>'+
-      '</div>'+
-      '</div>';
-    // Colour stock visual panel with segmented bars
-    var stockRows=['BK','C','LC','M','LM','Y'].map(function(code){
-      var s=inkState[code]||{store:0};
-      var maxQ=INK_MAX[code]||10;
-      var pct=Math.min(100,Math.round((s.store/maxQ)*100));
-      var col=INK_COLORS[code]||'#888';
-      var barCol=pct===0?'var(--red)':pct<25?'var(--red)':pct<40?'var(--amber)':col;
-      var segs=10, filled=Math.round(pct/10), segsHtml='';
-      for(var si2=0;si2<segs;si2++){
-        segsHtml+='<div style="flex:1;height:7px;border-radius:2px;margin-right:2px;background:'+(si2<filled?barCol:'var(--bg4)')+';transition:background .3s"></div>';
-      }
-      return '<div style="display:flex;align-items:center;gap:.875rem;padding:.45rem 0;border-bottom:1px solid var(--border)">'+
-        '<div style="display:flex;align-items:center;gap:.45rem;min-width:110px">'+
-          '<div style="width:11px;height:11px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'+
-          '<span style="font-size:12px;font-weight:700;color:var(--text)">'+INK_NAMES_FULL[code]+'</span>'+
-        '</div>'+
-        '<div style="flex:1;display:flex;margin:0 .25rem">'+segsHtml+'</div>'+
-        '<div style="min-width:52px;text-align:right">'+
-          '<span style="font-family:\'DM Mono\',monospace;font-size:12px;font-weight:700;color:'+barCol+'">'+s.store+' / '+maxQ+'</span>'+
-        '</div>'+
-        '<div style="min-width:36px;text-align:right">'+
-          '<span style="font-size:10.5px;color:var(--text3)">'+pct+'%</span>'+
-        '</div>'+
-      '</div>';
-    }).join('');
-    var stockPanel=
-      '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:1rem 1.25rem;margin-bottom:.75rem">'+
-      '<div style="font-size:9.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem">Stock Levels by Colour</div>'+
-      stockRows+
-      '</div>';
-    dash.innerHTML=kpiRow+stockPanel;
-  }
   var html='';
   ['BK','C','LC','M','LM','Y'].forEach(function(code){
     var s=inkState[code]||{store:0,bigIct:1,smallIct:1};

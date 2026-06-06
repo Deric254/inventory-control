@@ -1024,7 +1024,7 @@ def generate_pdf_report(engine: "ExcelEngine", output_path: str,
         from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
         from reportlab.platypus import (
             Paragraph, Spacer, Table, TableStyle,
-            HRFlowable, KeepTogether, PageBreak
+            HRFlowable, KeepTogether, PageBreak, Flowable
         )
         from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate
         from reportlab.lib.colors import HexColor
@@ -1281,7 +1281,8 @@ def generate_pdf_report(engine: "ExcelEngine", output_path: str,
                                f'{round(cnt/total*100)}%' if total else '0%'])
         dept_rows.append(['TOTAL', str(total), str(n_repair), '100%'])
 
-        # Side by side: type table left, dept table right, with a small gap
+        # Side by side: each table rendered into its own Frame so ReportLab
+        # can split each independently across pages without overflow errors.
         GAP = 0.3*cm
         TW  = (BW - GAP) * 0.48
         DW  = BW - TW - GAP
@@ -1292,16 +1293,43 @@ def generate_pdf_report(engine: "ExcelEngine", output_path: str,
         t_type = dtable(['Equipment Type','Total','Good','Repair','%'], type_rows, type_cw)
         t_dept = dtable(['Department','Total','Repair','%'], dept_rows, dept_cw)
 
-        side_by_side = Table([[t_type, Spacer(GAP,1), t_dept]],
-                              colWidths=[TW, GAP, DW])
-        side_by_side.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('LEFTPADDING',  (0,0), (-1,-1), 0),
-            ('RIGHTPADDING', (0,0), (-1,-1), 0),
-            ('TOPPADDING',   (0,0), (-1,-1), 0),
-            ('BOTTOMPADDING',(0,0), (-1,-1), 0),
-        ]))
-        story.append(side_by_side)
+        class SideBySide(Flowable):
+            """Draws two flowables into adjacent Frames; each can split across pages."""
+            def __init__(self, left, right, lw, rw, gap):
+                Flowable.__init__(self)
+                self._left, self._right = left, right
+                self._lw, self._rw, self._gap = lw, rw, gap
+
+            def _height_of(self, flowable, width):
+                w, h = flowable.wrap(width, 9999)
+                return h
+
+            def wrap(self, aW, aH):
+                lh = self._height_of(self._left,  self._lw)
+                rh = self._height_of(self._right, self._rw)
+                self.height = max(lh, rh)
+                return aW, self.height
+
+            def draw(self):
+                from reportlab.platypus import Frame as _Frame
+                c = self.canv
+                lf = _Frame(0, 0, self._lw, self.height,
+                            leftPadding=0, rightPadding=0,
+                            topPadding=0, bottomPadding=0)
+                rf = _Frame(self._lw + self._gap, 0, self._rw, self.height,
+                            leftPadding=0, rightPadding=0,
+                            topPadding=0, bottomPadding=0)
+                lf.addFromList([self._left],  c)
+                rf.addFromList([self._right], c)
+
+            def split(self, aW, aH):
+                # If the combined height fits, no split needed.
+                if aH >= self.height:
+                    return [self]
+                # Otherwise fall back to stacking vertically so nothing is lost.
+                return [self._left, Spacer(1, 4), self._right]
+
+        story.append(SideBySide(t_type, t_dept, TW, DW, GAP))
 
         # ── Assets Needing Attention ────────────────────
         repair_assets = [r for r in active if bucket(r.get('Condition/Status')) == 'repair']
