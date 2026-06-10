@@ -173,10 +173,21 @@ class ExcelEngine:
         wb[SHEET_LOG].append([now(), action, _safe(desc), _safe(by)])
 
     def _backup(self):
-        os.makedirs(BACKUP_DIR, exist_ok=True)
-        ts  = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        dst = os.path.join(BACKUP_DIR, f"ICT_backup_{ts}.xlsx")
-        shutil.copy2(MASTER_XL, dst)
+        try:
+            os.makedirs(BACKUP_DIR, exist_ok=True)
+            ts  = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            dst = os.path.join(BACKUP_DIR, f"ICT_backup_{ts}.xlsx")
+            shutil.copy2(MASTER_XL, dst)
+            # Keep only the 5 most recent backups
+            backups = sorted([
+                os.path.join(BACKUP_DIR, f) for f in os.listdir(BACKUP_DIR)
+                if f.startswith("ICT_backup_") and f.endswith(".xlsx")
+            ])
+            for old in backups[:-5]:
+                try: os.remove(old)
+                except: pass
+        except Exception:
+            pass  # Never let a backup failure block the actual write
 
     def _ensure_workbook(self):
         if not os.path.exists(MASTER_XL):
@@ -687,8 +698,103 @@ class Api:
                 uri = p.replace(os.sep, '/'); return 'file:///' + uri
         return ''
 
-    def get_master_path(self):
-        return MASTER_XL
+    def get_backups(self):
+        try:
+            if not os.path.exists(BACKUP_DIR):
+                return json.dumps({"ok": True, "backups": []})
+            files = sorted([
+                f for f in os.listdir(BACKUP_DIR)
+                if f.endswith('.xlsx')
+            ], reverse=True)
+            result = []
+            for f in files:
+                fp = os.path.join(BACKUP_DIR, f)
+                size_kb = round(os.path.getsize(fp) / 1024, 1)
+                mtime = datetime.datetime.fromtimestamp(os.path.getmtime(fp))
+                result.append({
+                    "name": f,
+                    "size_kb": size_kb,
+                    "modified": mtime.strftime("%Y-%m-%d %H:%M:%S")
+                })
+            return json.dumps({"ok": True, "backups": result})
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
+
+    def export_full_backup(self):
+        """Package ALL system data into one zip for full portability."""
+        try:
+            import zipfile, base64, io
+            ts  = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+                # Core data files
+                for fname, fpath in [
+                    ("ICT_MASTER.xlsx", MASTER_XL),
+                    ("auth.json",       AUTH_FILE),
+                    ("config.json",     CONFIG_FILE),
+                ]:
+                    if os.path.exists(fpath):
+                        zf.write(fpath, fname)
+                # All backup files
+                if os.path.exists(BACKUP_DIR):
+                    for f in os.listdir(BACKUP_DIR):
+                        if f.endswith('.xlsx'):
+                            zf.write(os.path.join(BACKUP_DIR, f), f"backups/{f}")
+                # Manifest so we can validate on restore
+                manifest = {
+                    "version": 1,
+                    "exported": ts,
+                    "app": "ICT Command Centre",
+                    "hospital": "St. Anne Mission Hospital"
+                }
+                zf.writestr("ICT_MANIFEST.json", json.dumps(manifest, indent=2))
+            b64 = base64.b64encode(buf.getvalue()).decode('ascii')
+            return json.dumps({"ok": True, "b64": b64, "filename": f"ICT_FullBackup_{ts}.zip"})
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
+
+    def restore_full_backup(self, b64_zip):
+        """Restore all system data from a full backup zip."""
+        try:
+            import zipfile, base64, io
+            raw = base64.b64decode(b64_zip)
+            buf = io.BytesIO(raw)
+            if not zipfile.is_zipfile(buf):
+                return json.dumps({"ok": False, "error": "Invalid file — not a zip archive"})
+            buf.seek(0)
+            with zipfile.ZipFile(buf, 'r') as zf:
+                names = zf.namelist()
+                # Validate manifest
+                if "ICT_MANIFEST.json" not in names:
+                    return json.dumps({"ok": False, "error": "Invalid backup — missing manifest. Only backups exported from this system are accepted."})
+                manifest = json.loads(zf.read("ICT_MANIFEST.json"))
+                if manifest.get("app") != "ICT Command Centre":
+                    return json.dumps({"ok": False, "error": "This backup is not from ICT Command Centre."})
+                # Must contain the master data file
+                if "ICT_MASTER.xlsx" not in names:
+                    return json.dumps({"ok": False, "error": "Backup is missing ICT_MASTER.xlsx — cannot restore."})
+                # Restore under the lock so no writes happen concurrently
+                with self.engine._lock:
+                    # Restore core files
+                    for fname, fpath in [
+                        ("ICT_MASTER.xlsx", MASTER_XL),
+                        ("auth.json",       AUTH_FILE),
+                        ("config.json",     CONFIG_FILE),
+                    ]:
+                        if fname in names:
+                            with open(fpath, 'wb') as f:
+                                f.write(zf.read(fname))
+                    # Restore backups
+                    os.makedirs(BACKUP_DIR, exist_ok=True)
+                    for name in names:
+                        if name.startswith("backups/") and name.endswith(".xlsx"):
+                            fname = os.path.basename(name)
+                            if fname:
+                                with open(os.path.join(BACKUP_DIR, fname), 'wb') as f:
+                                    f.write(zf.read(name))
+            return json.dumps({"ok": True})
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e)})
 
     def open_excel(self):
         import subprocess
@@ -708,13 +814,52 @@ class Api:
         try:
             if len(pin.strip()) < 4:
                 return json.dumps({"ok": False, "error": "PIN must be at least 4 characters"})
+            # Generate PIN hash
             salt = secrets.token_hex(16)
             h    = hashlib.sha256((salt + pin).encode()).hexdigest()
+            # Generate a recovery key: XXXX-XXXX-XXXX-XXXX
+            raw_key = secrets.token_hex(8).upper()
+            rkey_display = '-'.join([raw_key[i:i+4] for i in range(0, 16, 4)])
+            rkey_salt = secrets.token_hex(16)
+            rkey_hash = hashlib.sha256((rkey_salt + rkey_display).encode()).hexdigest()
+            # Store a masked hint (first char of each group visible) for Settings display
+            parts = rkey_display.split('-')
+            rkey_hint = '-'.join([p[0]+'***' for p in parts])
             with open(AUTH_FILE, 'w') as f:
-                json.dump({"hash": h, "salt": salt}, f)
-            return json.dumps({"ok": True})
+                json.dump({"hash": h, "salt": salt,
+                           "rkey_hash": rkey_hash, "rkey_salt": rkey_salt,
+                           "rkey_hint": rkey_hint,
+                           "rkey_plain": rkey_display}, f)  # stored for Settings display
+            return json.dumps({"ok": True, "recovery_key": rkey_display})
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})
+
+    def get_recovery_hint(self):
+        try:
+            if not os.path.exists(AUTH_FILE):
+                return json.dumps({"ok": False, "key": None})
+            with open(AUTH_FILE) as f:
+                data = json.load(f)
+            # Return the full key for display in Settings (user is already authenticated)
+            key = data.get('rkey_plain') or data.get('rkey_hint') or None
+            return json.dumps({"ok": True, "key": key})
+        except Exception as e:
+            return json.dumps({"ok": False, "key": None, "error": str(e)})
+
+    def verify_recovery_key(self, key):
+        try:
+            if not os.path.exists(AUTH_FILE):
+                return json.dumps({"valid": False})
+            with open(AUTH_FILE) as f:
+                data = json.load(f)
+            rkey_hash = data.get('rkey_hash')
+            rkey_salt = data.get('rkey_salt')
+            if not rkey_hash or not rkey_salt:
+                return json.dumps({"valid": False})
+            h = hashlib.sha256((rkey_salt + key.strip().upper()).encode()).hexdigest()
+            return json.dumps({"valid": h == rkey_hash})
+        except Exception as e:
+            return json.dumps({"valid": False, "error": str(e)})
 
     def verify_pin(self, pin):
         try:
@@ -970,6 +1115,21 @@ def make_handler(api, ui_path, browser_mode=False):
                         self.send_header("Content-Length", str(len(data)))
                         self.send_header("Content-Disposition",
                                          f'inline; filename="{fname}"')
+                        self.end_headers()
+                        self.wfile.write(data)
+                        return
+            # Serve backup files for download
+            if path.startswith("/backups/"):
+                fname = urllib.parse.unquote(path[len("/backups/"):])
+                if fname and "/" not in fname and "\\" not in fname and fname.endswith(".xlsx"):
+                    fpath = os.path.join(BACKUP_DIR, fname)
+                    if os.path.isfile(fpath):
+                        with open(fpath, "rb") as bf:
+                            data = bf.read()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                        self.send_header("Content-Length", str(len(data)))
+                        self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
                         self.end_headers()
                         self.wfile.write(data)
                         return

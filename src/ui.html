@@ -707,6 +707,36 @@ code, .mono{font-family:'DM Mono',monospace}
       <button onclick="doLogin()" style="width:100%;padding:.75rem;background:var(--blue);color:#000;border:none;border-radius:9px;font-family:'Syne',sans-serif;font-size:13.5px;font-weight:700;cursor:pointer;transition:all .15s;box-shadow:0 0 16px rgba(77,159,255,.3);" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter=''">
         🔐 &nbsp;Unlock System
       </button>
+      <!-- Forgot PIN -->
+      <div style="text-align:center;margin-top:.875rem">
+        <span onclick="toggleRecovery()" style="font-size:11px;color:var(--text3);cursor:pointer;text-decoration:underline;opacity:.7">Forgot PIN?</span>
+      </div>
+      <div id="recovery-form" style="display:none;margin-top:.75rem;border-top:1px solid var(--border);padding-top:.875rem">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem">Recovery Key</div>
+        <input id="recovery-key-input" type="text" placeholder="Enter your recovery key" maxlength="40"
+          style="width:100%;padding:.7rem .95rem;background:var(--bg3);border:1px solid var(--border2);border-radius:9px;color:var(--text);font-size:13px;font-family:'DM Mono',monospace;outline:none;letter-spacing:.1em;margin-bottom:.5rem;transition:border-color .15s"
+          onfocus="this.style.borderColor='var(--amber)'"
+          onblur="this.style.borderColor='var(--border2)'"
+          onkeydown="if(event.key==='Enter')doRecoverAccess()">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:.625rem;line-height:1.5">Enter the recovery key shown when you first set your PIN. After verifying, set a new PIN.</div>
+        <div id="recovery-err" style="color:var(--red);font-size:12px;margin-bottom:.5rem;display:none;background:var(--red-dim);border:1px solid rgba(255,77,94,.2);border-radius:6px;padding:.5rem .75rem"></div>
+        <button onclick="doRecoverAccess()" style="width:100%;padding:.65rem;background:var(--amber);color:#000;border:none;border-radius:9px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">
+          🔑 &nbsp;Verify Recovery Key
+        </button>
+      </div>
+      <!-- New PIN after recovery -->
+      <div id="recovery-reset-form" style="display:none;margin-top:.75rem;border-top:1px solid var(--border);padding-top:.875rem">
+        <div style="font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.625rem">✅ Recovery verified — set a new PIN</div>
+        <input id="recovery-new-pin" type="password" placeholder="New PIN (min 4 chars)" maxlength="20"
+          style="width:100%;padding:.7rem .95rem;background:var(--bg3);border:1px solid var(--border2);border-radius:9px;color:var(--text);font-size:14px;font-family:'DM Mono',monospace;outline:none;letter-spacing:.2em;margin-bottom:.5rem;transition:border-color .15s">
+        <input id="recovery-confirm-pin" type="password" placeholder="Confirm new PIN" maxlength="20"
+          style="width:100%;padding:.7rem .95rem;background:var(--bg3);border:1px solid var(--border2);border-radius:9px;color:var(--text);font-size:14px;font-family:'DM Mono',monospace;outline:none;letter-spacing:.2em;margin-bottom:.625rem;transition:border-color .15s"
+          onkeydown="if(event.key==='Enter')doResetPinViaRecovery()">
+        <div id="recovery-reset-err" style="color:var(--red);font-size:12px;margin-bottom:.5rem;display:none"></div>
+        <button onclick="doResetPinViaRecovery()" style="width:100%;padding:.65rem;background:var(--green);color:#000;border:none;border-radius:9px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer">
+          💾 &nbsp;Save New PIN & Login
+        </button>
+      </div>
     </div>
     <div id="setup-form" style="display:none">
       <div style="background:var(--blue-dim);border:1px solid rgba(77,159,255,.2);border-radius:9px;padding:.875rem 1rem;margin-bottom:1.1rem;font-size:12.5px;color:var(--text2)">
@@ -982,6 +1012,74 @@ code, .mono{font-family:'DM Mono',monospace}
         <div style="margin-top:1rem;display:flex;gap:.5rem">
           <button class="btn ok" onclick="changePin()">🔑 Update PIN & Log Out</button>
           <button class="btn ghost" onclick="document.getElementById('pin-old').value='';document.getElementById('pin-new2').value='';document.getElementById('pin-cnf').value='';document.getElementById('pin-msg').textContent=''">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:520px;margin-bottom:.875rem">
+      <div class="card-hd"><span class="card-title">📦 Data Portability</span></div>
+      <div class="card-bd">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:1.1rem;line-height:1.6">
+          Export a single file containing <strong>everything</strong> — all assets, history, ink records, audit logs, your PIN, recovery key, configuration, and all backups. Use it to move to a new device or keep a safe off-site copy.
+        </div>
+
+        <!-- EXPORT -->
+        <div style="background:var(--bg3);border-radius:10px;padding:.875rem 1rem;margin-bottom:.875rem">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem">⬇ Export Full Backup</div>
+          <div style="font-size:11.5px;color:var(--text2);margin-bottom:.75rem;line-height:1.5">Downloads a <code style="font-family:'DM Mono',monospace;font-size:11px;background:var(--bg4);padding:.1rem .35rem;border-radius:4px">ICT_FullBackup_TIMESTAMP.zip</code> file to your computer.</div>
+          <button class="btn pri" id="export-btn" onclick="doExportFullBackup()" style="font-size:12px">
+            📦 Download Full Backup
+          </button>
+          <div id="export-msg" style="display:none;margin-top:.625rem;font-size:11.5px"></div>
+        </div>
+
+        <!-- RESTORE -->
+        <div style="background:var(--bg3);border-radius:10px;padding:.875rem 1rem">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem">⬆ Restore from Backup</div>
+          <div style="font-size:11.5px;color:var(--text2);margin-bottom:.75rem;line-height:1.5">
+            Select a <code style="font-family:'DM Mono',monospace;font-size:11px;background:var(--bg4);padding:.1rem .35rem;border-radius:4px">ICT_FullBackup_*.zip</code> file exported from this app.
+            <strong style="color:var(--amber)"> This will replace ALL current data.</strong>
+          </div>
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+            <label style="display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .9rem;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer">
+              📂 Choose File
+              <input type="file" id="restore-file-input" accept=".zip" style="display:none" onchange="onRestoreFileChosen(this)">
+            </label>
+            <span id="restore-filename" style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace"></span>
+          </div>
+          <div id="restore-msg" style="display:none;margin-top:.625rem;font-size:11.5px"></div>
+          <button class="btn" id="restore-btn" onclick="doRestoreFullBackup()" style="display:none;margin-top:.625rem;font-size:12px;background:var(--amber);color:#000;border:none">
+            ⬆ Restore &amp; Restart
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:520px;margin-bottom:.875rem">
+      <div class="card-hd"><span class="card-title">💾 Data Backups</span></div>
+      <div class="card-bd">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:1rem;line-height:1.6">
+          The system automatically backs up your data before every write operation. The 5 most recent backups are kept. Download any backup to recover data if needed.
+        </div>
+        <div id="backup-list" style="margin-bottom:.875rem">
+          <div style="font-size:12px;color:var(--text3)">Loading backups…</div>
+        </div>
+        <button class="btn ghost" onclick="loadBackups()">🔄 Refresh</button>
+      </div>
+    </div>
+
+    <div class="card" style="max-width:520px;margin-bottom:.875rem">
+      <div class="card-hd"><span class="card-title">🗝️ Recovery Key</span></div>
+      <div class="card-bd">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:1rem;line-height:1.6">
+          Your recovery key lets you reset a forgotten PIN without losing data. It was shown when you first set your PIN.<br>
+          <strong style="color:var(--amber)">Changing your PIN generates a new recovery key.</strong>
+        </div>
+        <div id="rkey-display" style="display:none;background:var(--bg3);border:1px solid var(--border2);border-radius:9px;padding:.875rem 1rem;margin-bottom:.875rem;font-family:'DM Mono',monospace;font-size:16px;font-weight:700;letter-spacing:.15em;color:var(--gold);text-align:center"></div>
+        <div id="rkey-msg" style="font-size:11.5px;color:var(--text3);margin-bottom:.875rem;display:none">Write this down and store it somewhere safe. It will not be shown again after you leave this page.</div>
+        <div style="display:flex;gap:.5rem">
+          <button class="btn ghost" onclick="showRecoveryKey()">👁 Show Recovery Key</button>
+          <button class="btn ghost" id="rkey-hide-btn" onclick="hideRecoveryKey()" style="display:none">Hide</button>
         </div>
       </div>
     </div>
@@ -1358,6 +1456,191 @@ var deptSet={}, typeSet={};
 // ══════════════════════════════════════════════════════
 // LOGIN
 // ══════════════════════════════════════════════════════
+function doExportFullBackup(){
+  var btn=document.getElementById('export-btn');
+  var msg=document.getElementById('export-msg');
+  btn.disabled=true; btn.textContent='⏳ Preparing…';
+  msg.style.display='none';
+  pywebview.api.export_full_backup().then(function(r){
+    btn.disabled=false; btn.textContent='📦 Download Full Backup';
+    var res=JSON.parse(r);
+    if(res.ok){
+      // Trigger download
+      var a=document.createElement('a');
+      a.href='data:application/zip;base64,'+res.b64;
+      a.download=res.filename||'ICT_FullBackup.zip';
+      a.style.display='none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      msg.style.display='';
+      msg.style.color='var(--green)';
+      msg.textContent='✅ Backup downloaded: '+res.filename;
+    } else {
+      msg.style.display='';
+      msg.style.color='var(--red)';
+      msg.textContent='❌ '+(res.error||'Export failed');
+    }
+  }).catch(function(e){
+    btn.disabled=false; btn.textContent='📦 Download Full Backup';
+    msg.style.display=''; msg.style.color='var(--red)';
+    msg.textContent='❌ Unexpected error during export.';
+  });
+}
+
+var _restoreFileB64=null;
+
+function onRestoreFileChosen(input){
+  var file=input.files[0];
+  if(!file) return;
+  var fnEl=document.getElementById('restore-filename');
+  var btn=document.getElementById('restore-btn');
+  var msg=document.getElementById('restore-msg');
+  fnEl.textContent=file.name;
+  msg.style.display='none';
+  btn.style.display='none';
+  _restoreFileB64=null;
+  // Validate extension
+  if(!file.name.toLowerCase().endsWith('.zip')){
+    msg.style.display=''; msg.style.color='var(--red)';
+    msg.textContent='❌ Please choose a .zip file exported from this app.';
+    return;
+  }
+  // Read as base64
+  var reader=new FileReader();
+  reader.onload=function(e){
+    _restoreFileB64=e.target.result.split(',')[1];
+    btn.style.display='';
+    msg.style.display=''; msg.style.color='var(--amber)';
+    msg.textContent='⚠ Ready to restore. This will overwrite ALL current data. Press Restore & Restart to proceed.';
+  };
+  reader.readAsDataURL(file);
+}
+
+function doRestoreFullBackup(){
+  if(!_restoreFileB64){toast('No file selected','err');return;}
+  if(!confirm('This will replace ALL current data with the backup.\n\nThe app will reload automatically.\n\nAre you sure?')) return;
+  var btn=document.getElementById('restore-btn');
+  var msg=document.getElementById('restore-msg');
+  btn.disabled=true; btn.textContent='⏳ Restoring…';
+  pywebview.api.restore_full_backup(_restoreFileB64).then(function(r){
+    var res=JSON.parse(r);
+    if(res.ok){
+      msg.style.display=''; msg.style.color='var(--green)';
+      msg.textContent='✅ Restore complete. Reloading…';
+      setTimeout(function(){ window.location.reload(); }, 1200);
+    } else {
+      btn.disabled=false; btn.textContent='⬆ Restore & Restart';
+      msg.style.display=''; msg.style.color='var(--red)';
+      msg.textContent='❌ '+(res.error||'Restore failed');
+    }
+  }).catch(function(){
+    btn.disabled=false; btn.textContent='⬆ Restore & Restart';
+    msg.style.display=''; msg.style.color='var(--red)';
+    msg.textContent='❌ Unexpected error during restore.';
+  });
+}
+
+function loadBackups(){
+  var el=document.getElementById('backup-list');
+  if(!el) return;
+  el.innerHTML='<div style="font-size:12px;color:var(--text3)">Loading…</div>';
+  pywebview.api.get_backups().then(function(r){
+    var res=JSON.parse(r);
+    if(!res.ok||!res.backups||!res.backups.length){
+      el.innerHTML='<div style="font-size:12px;color:var(--text3)">No backups found yet. They are created automatically on every write operation.</div>';
+      return;
+    }
+    el.innerHTML=res.backups.map(function(b,i){
+      // Build download URL via the HTTP server
+      var port=window.location.port||'';
+      var url='http://127.0.0.1:'+port+'/backups/'+encodeURIComponent(b.name);
+      var label=i===0?'<span style="font-size:9px;font-weight:700;color:var(--green);margin-left:.4rem;text-transform:uppercase;letter-spacing:.05em">Latest</span>':'';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.55rem .75rem;border-radius:8px;background:var(--bg3);margin-bottom:.4rem;gap:.75rem">'+
+        '<div style="min-width:0">'+
+          '<div style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escHtml(b.modified)+label+'</div>'+
+          '<div style="font-size:10px;color:var(--text3);margin-top:.15rem">'+b.size_kb+' KB &nbsp;·&nbsp; '+escHtml(b.name)+'</div>'+
+        '</div>'+
+        '<a href="'+url+'" download="'+escHtml(b.name)+'" style="flex-shrink:0;padding:.35rem .75rem;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;color:var(--text2);text-decoration:none;white-space:nowrap" title="Download this backup">⬇ Download</a>'+
+      '</div>';
+    }).join('');
+  }).catch(function(){
+    el.innerHTML='<div style="font-size:12px;color:var(--red)">Could not load backups.</div>';
+  });
+}
+
+function showRecoveryKey(){
+  pywebview.api.get_recovery_hint().then(function(r){
+    var res=JSON.parse(r);
+    var disp=document.getElementById('rkey-display');
+    var msg=document.getElementById('rkey-msg');
+    var hideBtn=document.getElementById('rkey-hide-btn');
+    if(res.ok && res.key){
+      disp.textContent=res.key;
+      disp.style.display='';
+      msg.style.display='';
+      if(hideBtn) hideBtn.style.display='';
+    } else {
+      disp.textContent='No recovery key found. Change your PIN to generate one.';
+      disp.style.color='var(--text3)';
+      disp.style.display='';
+    }
+  });
+}
+function hideRecoveryKey(){
+  document.getElementById('rkey-display').style.display='none';
+  document.getElementById('rkey-msg').style.display='none';
+  document.getElementById('rkey-hide-btn').style.display='none';
+}
+
+function toggleRecovery(){
+  var rf=document.getElementById('recovery-form');
+  var rrf=document.getElementById('recovery-reset-form');
+  var isVisible=rf.style.display!=='none';
+  rf.style.display=isVisible?'none':'';
+  rrf.style.display='none';
+  if(!isVisible) setTimeout(function(){document.getElementById('recovery-key-input').focus();},80);
+}
+
+function doRecoverAccess(){
+  var key=document.getElementById('recovery-key-input').value.trim();
+  var errEl=document.getElementById('recovery-err');
+  errEl.style.display='none';
+  if(!key){errEl.style.display='';errEl.textContent='Please enter your recovery key.';return;}
+  pywebview.api.verify_recovery_key(key).then(function(r){
+    var res=JSON.parse(r);
+    if(res.valid){
+      document.getElementById('recovery-form').style.display='none';
+      document.getElementById('recovery-reset-form').style.display='';
+      setTimeout(function(){document.getElementById('recovery-new-pin').focus();},80);
+    } else {
+      errEl.style.display='';
+      errEl.textContent='Invalid recovery key. Check it and try again.';
+    }
+  });
+}
+
+function doResetPinViaRecovery(){
+  var np=document.getElementById('recovery-new-pin').value;
+  var cnf=document.getElementById('recovery-confirm-pin').value;
+  var errEl=document.getElementById('recovery-reset-err');
+  errEl.style.display='none';
+  if(np.length<4){errEl.style.display='';errEl.textContent='PIN must be at least 4 characters.';return;}
+  if(np!==cnf){errEl.style.display='';errEl.textContent='PINs do not match.';return;}
+  pywebview.api.set_pin(np).then(function(r){
+    var res=JSON.parse(r);
+    if(res.ok){
+      // PIN reset — show the new recovery key then reload
+      var msg='PIN reset successfully!\n\nYour NEW recovery key is:\n\n'+
+        (res.recovery_key||'(none generated)')+'\n\nSave this somewhere safe. It will not be shown again.';
+      alert(msg);
+      window.location.reload();
+    } else {
+      errEl.style.display='';errEl.textContent=res.error||'Error resetting PIN.';
+    }
+  });
+}
+
 function initLogin(){
   pywebview.api.is_pin_set().then(function(r){
     var res=JSON.parse(r);
@@ -1402,10 +1685,13 @@ function doSetPin(){
   pywebview.api.set_pin(p1).then(function(r){
     var res=JSON.parse(r);
     if(res.ok){
+      // Show recovery key once — user must save it
+      if(res.recovery_key){
+        alert('✅ PIN set!\n\nYour RECOVERY KEY is:\n\n'+res.recovery_key+'\n\nWrite this down and keep it safe.\nIf you forget your PIN, this key lets you reset it.\nIt will NOT be shown again.');
+      }
       document.getElementById('login-overlay').style.display='none';
       document.getElementById('app').style.display='flex';
       loadApp();
-      // log after loadApp fires so it doesn't compete for the Excel lock
       setTimeout(function(){ pywebview.api.log_action('SETUP','Initial PIN set — first-time system setup completed'); }, 800);
     } else {
       el.style.display=''; el.textContent=res.error||'Error setting PIN.';
@@ -1489,6 +1775,7 @@ function nav(id){
   if(id==='history')   reload(function(){renderHistory();});
   if(id==='ink')       reload(function(){renderInk();});
   if(id==='config')    renderConfig();
+  if(id==='settings')  loadBackups();
 }
 
 // ══════════════════════════════════════════════════════
@@ -2951,23 +3238,26 @@ function removeCfg(key, val){
 // ══════════════════════════════════════════════════════
 function doLogout(){
   if(!confirm('Log out now? You will need your PIN to get back in.')) return;
-  // Log before clearing state while API still has context
   try { pywebview.api.log_action('LOGOUT','Session ended — user logged out'); } catch(e){}
-  // Reset in-memory state
+  // Clear all in-memory data
   rows=[]; inkState={}; logItems=[]; histItems=[];
-  // Show login overlay, hide app
+  // Hide app, show login overlay
   document.getElementById('app').style.display='none';
   document.getElementById('login-overlay').style.display='flex';
   document.getElementById('login-err').style.display='none';
   document.getElementById('login-form').style.display='';
   document.getElementById('setup-form').style.display='none';
-  // Clear pin and focus after overlay is visible
+  document.getElementById('recovery-form').style.display='none';
+  document.getElementById('recovery-reset-form').style.display='none';
+  // Reset pin input completely
   var pinEl=document.getElementById('pin-input');
   pinEl.value='';
   pinEl.disabled=false;
-  pinEl.style.pointerEvents='';
-  setTimeout(function(){ pinEl.focus(); }, 150);
-  toast('Logged out','info');
+  pinEl.style.pointerEvents='auto';
+  // Refocus: tell Electron to blur then refocus the window (replicates minimize/restore)
+  // then focus the input after the OS focus cycle completes
+  try { if(window.electronAPI&&window.electronAPI.refocus) window.electronAPI.refocus(); } catch(e){}
+  setTimeout(function(){ pinEl.focus(); pinEl.click(); }, 350);
 }
 
 function changePin(){
@@ -3083,6 +3373,8 @@ function toggleTheme(){
 })();
 
 window.addEventListener('pywebviewready', function(){
+  // Re-focus the Electron window so keyboard input always works on load/reload
+  try { if(window.electronAPI && window.electronAPI.refocus) window.electronAPI.refocus(); } catch(e){}
   initLogin();
 });
 

@@ -134,6 +134,20 @@ ipcMain.handle('open-file', (_e, filePath) =>
   shell.openPath(filePath).then(() => ({ ok: true })).catch(e => ({ ok: false, error: e.message }))
 );
 
+ipcMain.on('refocus-window', () => {
+  if (!mainWindow) return;
+  // Blur then focus replicates exactly what minimize/restore does at OS level
+  mainWindow.blur();
+  setTimeout(() => {
+    if (mainWindow) {
+      mainWindow.focus();
+      setTimeout(() => {
+        if (mainWindow) mainWindow.webContents.focus();
+      }, 50);
+    }
+  }, 80);
+});
+
 // ── Window ────────────────────────────────────────────────────────────────────
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -151,6 +165,21 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
   mainWindow.on('ready-to-show', () => mainWindow.show());
   mainWindow.on('closed', () => { mainWindow = null; killPython(); });
+
+  // Every time the page finishes loading (including after logout state reset),
+  // blur then focus the window so the webview gets OS-level keyboard focus.
+  // This is exactly what minimize/restore does — we replicate it automatically.
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (mainWindow) {
+      mainWindow.blur();
+      setTimeout(() => {
+        if (mainWindow) {
+          mainWindow.focus();
+          mainWindow.webContents.focus();
+        }
+      }, 80);
+    }
+  });
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

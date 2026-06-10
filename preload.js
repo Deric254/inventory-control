@@ -19,7 +19,8 @@ contextBridge.exposeInMainWorld('__pybridge__', {
 
 // Expose shell helpers ui.html may need
 contextBridge.exposeInMainWorld('electronAPI', {
-  openFile: filePath => ipcRenderer.invoke('open-file', filePath),
+  openFile:  filePath => ipcRenderer.invoke('open-file', filePath),
+  refocus:   ()       => ipcRenderer.send('refocus-window'),
 });
 
 // Inject the pywebview.api Proxy + flags + pywebviewready event.
